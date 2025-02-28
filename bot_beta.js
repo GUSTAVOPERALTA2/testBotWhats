@@ -23,13 +23,13 @@ client.on('ready', async () => {
         // Filtrar solo los chats que son grupos
         const groups = chats.filter(chat => chat.isGroup);
         console.log('Grupos disponibles:');
-        groups.forEach(group => {
-            console.log(`ID del grupo: ${group.id._serialized}`);  // Muestra el ID de cada grupo
-        });
-
-        // Si no se encuentran grupos
+        
         if (groups.length === 0) {
             console.log('❌ No se encontraron grupos');
+        } else {
+            groups.forEach(group => {
+                console.log(`Grupo encontrado: ${group.name}, ID: ${group.id._serialized}`);  // Muestra el nombre y el ID de cada grupo
+            });
         }
     } else {
         console.log('❌ No se encontraron chats');
