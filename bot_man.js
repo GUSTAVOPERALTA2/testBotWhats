@@ -1,39 +1,31 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const fs = require('fs');
-const path = '/home/gustavo.peralta/whatsapp-bot/.wwebjs_auth/session/SingletonLock';  // Ruta al archivo de bloqueo
 
-// Eliminar el archivo de bloqueo si existe
-if (fs.existsSync(path)) {
-    console.log('🛠️ Eliminando archivo de bloqueo...');
-    fs.unlinkSync(path);  // Elimina el archivo de bloqueo
-}
+// Definir los IDs de los grupos
+const GROUP_PRUEBA_GENERAL = '120363389868056953@g.us';  // Prueba general
+const GROUP_DESTINO_IT = '120363408965534037@g.us'; // IT Destino
+const GROUP_DESTINO_MANTENIMIENTO = '120363393791264206@g.us';  // Mantenimiento Destino
 
-const client = new Client({
-    authStrategy: new LocalAuth({
-        clientId: 'my-client-id', // Este ID es opcional, pero puedes poner algo único
-        dataPath: './my-session',  // Ruta personalizada donde se guardarán los datos de sesión
-    })
-});
-
-// Función para cargar las palabras clave desde el archivo
-function loadKeywords() {
+// Función para cargar palabras clave desde un archivo
+const loadKeywords = (filename) => {
     try {
-        const data = fs.readFileSync('keywords.txt', 'utf8');  // Lee el archivo
-        const keywords = data.split('\n').map(word => word.trim());  // Separa las palabras por línea
-        return keywords;
+        return fs.readFileSync(filename, 'utf8')
+            .split('\n')
+            .map(word => word.trim())
+            .filter(word => word.length > 0);
     } catch (err) {
-        console.error('Error al leer el archivo de palabras clave:', err);
+        console.error(`❌ Error al leer ${filename}:`, err);
         return [];
     }
-}
+};
 
-// Evento para manejar errores de autenticación
-client.on('auth_failure', (message) => {
-    console.error('Error de autenticación:', message);
-    console.log('Eliminando la sesión guardada y reintentando...');
-    fs.rmdirSync('./my-session', { recursive: true });  // Elimina la carpeta de sesión guardada
-    client.initialize();  // Vuelve a inicializar el cliente y pedir el QR
+// Cargar palabras clave desde los archivos
+let keywords_it = loadKeywords('keywords_it.txt');
+let keywords_man = loadKeywords('keywords_man.txt');
+
+const client = new Client({
+    authStrategy: new LocalAuth()
 });
 
 // Evento para mostrar el QR en consola
@@ -48,22 +40,17 @@ client.on('ready', async () => {
 
     // Obtener todos los chats
     const chats = await client.getChats();
-    console.log('Chats disponibles:', chats);
+    console.log('Grupos disponibles:');
 
-    if (chats && chats.length > 0) {
-        // Filtrar solo los chats que son grupos (basado en el ID del chat)
-        const groups = chats.filter(chat => chat.id._serialized.includes('@g.us'));
-        console.log('Grupos disponibles:');
+    // Filtrar solo los chats que son grupos
+    const groups = chats.filter(chat => chat.isGroup);
 
-        if (groups.length === 0) {
-            console.log('❌ No se encontraron grupos');
-        } else {
-            groups.forEach(group => {
-                console.log(`Grupo encontrado: ${group.name}, ID: ${group.id._serialized}`);  // Muestra el nombre y el ID de cada grupo
-            });
-        }
+    if (groups.length === 0) {
+        console.log('❌ No se encontraron grupos');
     } else {
-        console.log('❌ No se encontraron chats');
+        groups.forEach(group => {
+            console.log(`Grupo encontrado: ${group.name}, ID: ${group.id._serialized}`);
+        });
     }
 });
 
@@ -71,25 +58,22 @@ client.on('ready', async () => {
 client.on('message', async message => {
     console.log(`📩 Mensaje recibido: ${message.body}`);
 
-    // Cargar las palabras clave desde el archivo
-    const keywords = loadKeywords();
+    const chat = await message.getChat();
 
-    // ID de los grupos
-    const groupITPruebaId = '120363389868056953@g.us';  // ID del grupo "IT prueba"
-    const groupBotDestinoId = '120363408965534037@g.us';  // ID del grupo "Bot destino"
+    // Verifica si es un grupo
+    if (chat.isGroup) {
+        // Reenviar mensajes desde "Prueba general" al grupo "IT Destino"
+        if (chat.id._serialized === GROUP_PRUEBA_GENERAL && keywords_it.some(word => message.body.toLowerCase().includes(word.toLowerCase()))) {
+            console.log('📤 Reenviando mensaje desde Prueba general a IT Destino...');
+            await message.forward(GROUP_DESTINO_IT);
+            console.log('✅ Mensaje reenviado.');
+        }
 
-    // Verifica si el mensaje contiene alguna palabra clave
-    if (keywords.some(word => message.body.toLowerCase().includes(word.toLowerCase()))) {
-        const chat = await message.getChat();
-
-        // Verifica si el mensaje es del grupo "IT prueba"
-        if (chat.id._serialized === groupITPruebaId) {
-            console.log('🔹 Mensaje de "IT prueba" contiene una palabra clave, reenviando...');
-
-            // Reenvía el mensaje al grupo "Bot destino"
-            const targetChat = await client.getChatById(groupBotDestinoId);
-            await targetChat.sendMessage(message.body);
-            console.log('✅ Mensaje reenviado al grupo "Bot destino".');
+        // Reenviar mensajes con palabras clave de mantenimiento a "Mantenimiento Destino"
+        if (keywords_man.some(word => message.body.toLowerCase().includes(word.toLowerCase()))) {
+            console.log('📤 Reenviando mensaje a Mantenimiento Destino...');
+            await message.forward(GROUP_DESTINO_MANTENIMIENTO);
+            console.log('✅ Mensaje reenviado.');
         }
     }
 });
