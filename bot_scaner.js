@@ -11,7 +11,7 @@ client.on('qr', qr => {
 });
 
 client.on('ready', async () => {
-    console.log('✅ Bot de WhatsApp conectado y listo.');
+    console.log('Bot de WhatsApp conectado y listo.');
 
     // Obtener todos los chats del usuario
     const chats = await client.getChats();
@@ -27,7 +27,7 @@ client.on('ready', async () => {
 });
 
 client.on('message', async message => {
-    console.log(`📩 Mensaje recibido: ${message.body}`);
+    console.log(` Mensaje recibido: ${message.body}`);
 
     // Palabras clave para reenviar
     const keywords = ["TV", "controles", "luces"];
@@ -35,10 +35,11 @@ client.on('message', async message => {
     if (keywords.some(word => message.body.toLowerCase().includes(word.toLowerCase()))) {
         const chat = await message.getChat();
         if (chat.isGroup) {
-            console.log('📤 Reenviando mensaje...');
+            console.log(' Reenviando mensaje...');
             await message.forward('GRUPO_DESTINO_ID'); // Reemplaza con el ID real del grupo destino
         }
     }
 });
 
 client.initialize();
+
