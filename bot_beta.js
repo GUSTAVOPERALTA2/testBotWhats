@@ -20,10 +20,10 @@ client.on('ready', async () => {
     console.log('Chats disponibles:', chats);
 
     if (chats && chats.length > 0) {
-        // Filtrar solo los chats que son grupos
-        const groups = chats.filter(chat => chat.isGroup);
+        // Filtrar solo los chats que son grupos (basado en el ID del chat)
+        const groups = chats.filter(chat => chat.id._serialized.includes('@g.us'));
         console.log('Grupos disponibles:');
-        
+
         if (groups.length === 0) {
             console.log('❌ No se encontraron grupos');
         } else {
