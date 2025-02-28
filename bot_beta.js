@@ -20,17 +20,19 @@ client.on('ready', async () => {
     console.log('Chats disponibles:', chats);
 
     if (chats && chats.length > 0) {
-        // Filtrar solo los chats que son grupos
-        const groups = chats.filter(chat => chat.isGroup);
-        console.log('Grupos disponibles:');
-        
-        if (groups.length === 0) {
-            console.log('❌ No se encontraron grupos');
-        } else {
-            groups.forEach(group => {
-                console.log(`Grupo encontrado: ${group.name}, ID: ${group.id._serialized}`);  // Muestra el nombre y el ID de cada grupo
-            });
-        }
+        // Recorre todos los chats y muestra la información completa
+        chats.forEach(async chat => {
+            // Verificar el número de participantes para determinar si es un grupo o no
+            const isGroupChat = chat.participants && chat.participants.length > 2;
+            console.log(`Chat: ${chat.name}, Participantes: ${chat.participants.length}`);
+            console.log('¿Es un grupo?:', isGroupChat);
+
+            if (isGroupChat) {
+                console.log(`✅ Este es un grupo. ID: ${chat.id._serialized}`);
+            } else {
+                console.log(`❌ Este es un chat normal.`);
+            }
+        });
     } else {
         console.log('❌ No se encontraron chats');
     }
@@ -47,8 +49,9 @@ client.on('message', async message => {
     if (keywords.some(word => message.body.toLowerCase().includes(word.toLowerCase()))) {
         const chat = await message.getChat();
 
-        // Verifica si es un grupo y si el mensaje contiene palabras clave
-        if (chat.isGroup) {
+        // Verifica si el número de participantes en el chat es mayor a 2
+        const isGroupChat = chat.participants && chat.participants.length > 2;
+        if (isGroupChat) {
             console.log('📤 Reenviando mensaje...');
 
             // ID del grupo de destino
