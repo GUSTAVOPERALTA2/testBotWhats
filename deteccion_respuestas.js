@@ -79,17 +79,27 @@ client.on('message', async message => {
     if (foundIT) {
         const targetChatIT = await client.getChatById(groupBotDestinoId);
         const sentMessage = await targetChatIT.sendMessage(message.body);
+        console.log(`🔹 Mensaje enviado al grupo IT con ID: ${sentMessage.id}`);
+
         if (media) await targetChatIT.sendMessage(media);
+
+        // Imprimir información detallada de la referencia del mensaje
+        console.log(`🔸 Mensaje original enviado: ${sentMessage.body}`);
+        console.log(`🔸 ID del mensaje enviado: ${sentMessage.id}`);
+        console.log(`🔸 Referencia del mensaje enviado: ${sentMessage.referenceMessage ? sentMessage.referenceMessage.id : 'Ninguna'}`);
 
         // Ahora monitoreamos las respuestas en IT
         client.on('message', async (responseMessage) => {
+            // Imprimir información de cada mensaje recibido
+            console.log(`📥 Mensaje recibido: "${responseMessage.body}"`);
+            console.log(`🔸 ID del mensaje recibido: ${responseMessage.id}`);
+            console.log(`🔸 ID del mensaje al que se responde: ${responseMessage.referenceMessage ? responseMessage.referenceMessage.id : 'Ninguna'}`);
+
             if (responseMessage.referenceMessage && responseMessage.referenceMessage.id === sentMessage.id) {
                 console.log(`📝 Respuesta recibida al mensaje "${message.body}": "${responseMessage.body}"`);
-                // Aquí podrías agregar lógica para manejar las respuestas si lo necesitas
             }
         });
     }
 });
 
 client.initialize();
-//reply
