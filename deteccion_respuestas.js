@@ -1,6 +1,7 @@
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
-const fs = require('fs');  
+const fs = require('fs');
+const { v4: uuidv4 } = require('uuid');  // Necesitarás instalar 'uuid'
 
 const client = new Client({
     authStrategy: new LocalAuth()
@@ -78,30 +79,30 @@ client.on('message', async message => {
     // Enviar mensaje al grupo IT si se encuentra una palabra clave
     if (foundIT) {
         const targetChatIT = await client.getChatById(groupBotDestinoId);
-        const sentMessage = await targetChatIT.sendMessage(message.body);
+
+        // Generar un ID único para este mensaje
+        const messageId = uuidv4();  // ID único
+        const messageContent = `${message.body} \n[ID: ${messageId}]`;  // Incluir el ID en el mensaje
+
+        // Enviar el mensaje con el ID único
+        const sentMessage = await targetChatIT.sendMessage(messageContent);
         console.log(`🔹 Mensaje enviado al grupo IT con ID: ${sentMessage.id}`);
 
         if (media) await targetChatIT.sendMessage(media);
 
-        // Imprimir información detallada de la referencia del mensaje
-        console.log(`🔸 Mensaje original enviado: ${sentMessage.body}`);
-        console.log(`🔸 ID del mensaje enviado: ${sentMessage.id}`);
-        console.log(`🔸 Referencia del mensaje enviado: ${sentMessage.referenceMessage ? sentMessage.referenceMessage.id : 'Ninguna'}`);
+        // Guardar el ID de este mensaje
+        const sentMessageId = sentMessage.id;
 
-        // Ahora monitoreamos las respuestas en IT
+        // Monitorear las respuestas
         client.on('message', async (responseMessage) => {
-            // Asegurarse de que estamos recibiendo la respuesta correcta
             console.log(`📥 Mensaje recibido: "${responseMessage.body}"`);
-            console.log(`🔸 ID del mensaje recibido: ${responseMessage.id}`);
-            console.log(`🔸 ID del mensaje al que se responde: ${responseMessage.referenceMessage ? responseMessage.referenceMessage.id : 'Ninguna'}`);
-
-            if (responseMessage.referenceMessage && responseMessage.referenceMessage.id === sentMessage.id) {
-                // Aquí accedemos a 'body' correctamente para mostrar el contenido de la respuesta
-                console.log(`📝 Respuesta recibida al mensaje "${sentMessage.body}": "${responseMessage.body}"`);
+            
+            // Verificar si la respuesta contiene el ID único del mensaje original
+            if (responseMessage.body.includes(messageId)) {
+                console.log(`📝 Respuesta recibida al mensaje original con ID ${messageId}: "${responseMessage.body}"`);
             }
         });
     }
 });
 
 client.initialize();
-//depuracion
