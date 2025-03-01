@@ -90,16 +90,18 @@ client.on('message', async message => {
 
         // Ahora monitoreamos las respuestas en IT
         client.on('message', async (responseMessage) => {
-            // Imprimir información de cada mensaje recibido
+            // Asegurarse de que estamos recibiendo la respuesta correcta
             console.log(`📥 Mensaje recibido: "${responseMessage.body}"`);
             console.log(`🔸 ID del mensaje recibido: ${responseMessage.id}`);
             console.log(`🔸 ID del mensaje al que se responde: ${responseMessage.referenceMessage ? responseMessage.referenceMessage.id : 'Ninguna'}`);
 
             if (responseMessage.referenceMessage && responseMessage.referenceMessage.id === sentMessage.id) {
-                console.log(`📝 Respuesta recibida al mensaje "${message.body}": "${responseMessage.body}"`);
+                // Aquí accedemos a 'body' correctamente para mostrar el contenido de la respuesta
+                console.log(`📝 Respuesta recibida al mensaje "${sentMessage.body}": "${responseMessage.body}"`);
             }
         });
     }
 });
 
 client.initialize();
+//depuracion
