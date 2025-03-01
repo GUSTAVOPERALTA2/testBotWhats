@@ -81,18 +81,21 @@ client.on('message', async message => {
     }
 
     if (foundIT) {
+        console.log(`Mensaje con palabra clave para IT, enviando..."`);
         const targetChatIT = await client.getChatById(groupBotDestinoId);
         await targetChatIT.sendMessage(message.body);
         if (media) await targetChatIT.sendMessage(media);
     }
 
     if (foundMan) {
+        console.log(`Mensaje con palabra clave para Mantenimiento, enviando..."`);
         const targetChatMan = await client.getChatById(groupMantenimientoId);
         await targetChatMan.sendMessage(message.body);
         if (media) await targetChatMan.sendMessage(media);
     }
 
     if (foundAma) {
+        console.log(`Mensaje con palabra clave para Ama de llaves, enviando..."`);
         const targetChatAma = await client.getChatById(groupAmaId);
         await targetChatAma.sendMessage(message.body);
         if (media) await targetChatAma.sendMessage(media);
