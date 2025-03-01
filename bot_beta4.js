@@ -10,7 +10,7 @@ const client = new Client({
 let keywords = [];
 function loadKeywords() {
     try {
-        const data = fs.readFileSync('keywords_it.txt', 'utf8');  // Cambio aquí
+        const data = fs.readFileSync('keywords_it.txt', 'utf8');
         keywords = data.split('\n').map(word => word.trim().toLowerCase()); // Guardar en minúsculas y sin espacios
         console.log('✅ Palabras clave cargadas:', keywords);
     } catch (err) {
@@ -55,8 +55,10 @@ client.on('message', async message => {
     // Normalizar mensaje (minúsculas y sin espacios extra)
     const messageText = message.body.toLowerCase().trim();
 
-    // Verifica si el mensaje contiene alguna palabra clave
-    if (keywords.some(word => messageText.includes(word))) {
+    // Verifica si el mensaje contiene alguna palabra clave como palabra completa
+    const regex = new RegExp(`\\b(${keywords.join('|')})\\b`, 'i');  // Expresión regular para palabras exactas
+
+    if (regex.test(messageText)) {
         const chat = await message.getChat();
 
         // Verifica si el mensaje es del grupo "IT prueba"
