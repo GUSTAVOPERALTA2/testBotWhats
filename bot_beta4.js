@@ -75,3 +75,5 @@ client.on('message', async message => {
 
 // Inicializa el cliente de WhatsApp
 client.initialize();
+
+//CHECAR
