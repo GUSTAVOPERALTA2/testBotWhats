@@ -1,52 +1,63 @@
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
+const fs = require('fs');
+const { v4: uuidv4 } = require('uuid');  // Necesario instalar 'uuid'
 
-// Inicializa el cliente de WhatsApp Web
 const client = new Client({
-    authStrategy: new LocalAuth(),
-    puppeteer: { headless: true }
+    authStrategy: new LocalAuth()
 });
 
-// Escanea el código QR para iniciar sesión
+// Diccionario para rastrear mensajes enviados
+let sentMessages = new Map();
+
 client.on('qr', qr => {
+    console.log('🔹 Escanea este QR con WhatsApp Web:');
     qrcode.generate(qr, { small: true });
 });
 
-// Confirma cuando el bot está listo
-client.on('ready', () => {
-    console.log('¡Bot conectado y listo para usar!');
+client.on('ready', async () => {
+    console.log('✅ Bot de WhatsApp conectado y listo.');
 });
 
-// Almacena los mensajes enviados por el bot con su ID
-const mensajesEnviados = {};
+client.on('message', async message => {
+    console.log(`📩 Mensaje recibido en "${message.from}": "${message.body}"`);
 
-// Evento cuando se envía un mensaje
-client.on('message_create', msg => {
-    if (msg.fromMe) {
-        mensajesEnviados[msg.id.id] = msg.body; // Guarda el mensaje enviado por el bot
-    }
+    const groupITPruebaId = '120363389868056953@g.us';  
+    const groupBotDestinoId = '120363408965534037@g.us';  
+
+    const chat = await message.getChat();
+
+    if (!chat.isGroup) return;
+    if (chat.id._serialized !== groupITPruebaId) return;
+
+    // Generar un ID único para rastrear el mensaje
+    const messageId = uuidv4();  
+    const messageContent = `${message.body}\n[ID: ${messageId}]`;
+
+    // Enviar mensaje al grupo destino con el ID
+    const targetChatIT = await client.getChatById(groupBotDestinoId);
+    const sentMessage = await targetChatIT.sendMessage(messageContent);
+
+    // Guardar el mensaje en el diccionario con su ID
+    sentMessages.set(sentMessage.id._serialized, messageId);
+    console.log(`🔹 Mensaje enviado a IT con ID: ${messageId}`);
 });
 
-// Evento para detectar mensajes entrantes
-client.on('message', async msg => {
-    console.log(`Mensaje recibido de ${msg.from}: ${msg.body}`);
+// 🔍 Evento para detectar respuestas
+client.on('message_create', async responseMessage => {
+    const chat = await responseMessage.getChat();
 
-    // Si el mensaje es un comando, el bot responde
-    if (msg.body.toLowerCase() === '!test') {
-        const mensajeBot = await msg.reply(`Aquí está tu mensaje con ID: ${msg.id.id}`);
-        mensajesEnviados[mensajeBot.id.id] = mensajeBot.body; // Guarda el mensaje enviado
-    }
+    if (!chat.isGroup) return; // Solo rastrear en grupos
 
-    // Verifica si el usuario respondió a un mensaje del bot
-    if (msg.hasQuotedMsg) {
-        const quotedMsg = await msg.getQuotedMessage();
-        if (mensajesEnviados[quotedMsg.id.id]) {
-            console.log(`El usuario respondió a un mensaje del bot: ${quotedMsg.body}`);
-            msg.reply(`Recibí tu respuesta al mensaje: "${quotedMsg.body}"`);
+    console.log(`📥 Posible respuesta en "${chat.name}": "${responseMessage.body}"`);
+
+    // Revisar si la respuesta contiene algún ID de mensaje enviado
+    for (let [sentMsgId, originalID] of sentMessages) {
+        if (responseMessage.body.includes(originalID)) {
+            console.log(`✅ Respuesta detectada al mensaje con ID ${originalID}: "${responseMessage.body}"`);
         }
     }
 });
 
-// Inicia el cliente
 client.initialize();
-//RESPUESTAS
+//respuestas2
