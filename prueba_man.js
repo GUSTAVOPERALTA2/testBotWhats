@@ -54,6 +54,7 @@ client.on('message', async message => {
 
     const groupITPruebaId = '120363389868056953@g.us';  
     const groupBotDestinoId = '120363408965534037@g.us';  
+    const groupMantenimientoId = '120363393791264206@g.us';  // ID del grupo mantenimiento
 
     const chat = await message.getChat();
 
@@ -73,13 +74,18 @@ client.on('message', async message => {
     if (words.some(word => keywordsIt.has(word) || keywordsMan.has(word))) {
         console.log('🔹 Mensaje contiene una palabra clave, reenviando...');
 
-        const targetChat = await client.getChatById(groupBotDestinoId);
-        await targetChat.sendMessage(message.body);
+        // Reenviar al grupo "Bot destino"
+        const targetChatBotDestino = await client.getChatById(groupBotDestinoId);
+        await targetChatBotDestino.sendMessage(message.body);
         console.log('✅ Mensaje reenviado al grupo "Bot destino".');
+
+        // Reenviar al grupo "Mantenimiento"
+        const targetChatMantenimiento = await client.getChatById(groupMantenimientoId);
+        await targetChatMantenimiento.sendMessage(message.body);
+        console.log('✅ Mensaje reenviado al grupo "Mantenimiento".');
     }
 });
 
 // Inicializa el cliente de WhatsApp
 client.initialize();
-
-//MAN2
+//man3
