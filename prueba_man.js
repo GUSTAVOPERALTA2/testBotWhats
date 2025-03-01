@@ -70,22 +70,35 @@ client.on('message', async message => {
     const cleanedMessage = message.body.toLowerCase().replace(/[.,!?()]/g, '');  // Remueve signos de puntuación
     const words = cleanedMessage.split(/\s+/);  // Divide en palabras exactas
 
-    // Verificar si alguna palabra está en el Set de keywords
-    if (words.some(word => keywordsIt.has(word) || keywordsMan.has(word))) {
-        console.log('🔹 Mensaje contiene una palabra clave, reenviando...');
+    let foundIT = false;
+    let foundMan = false;
 
-        // Reenviar al grupo "Bot destino"
-        const targetChatBotDestino = await client.getChatById(groupBotDestinoId);
-        await targetChatBotDestino.sendMessage(message.body);
-        console.log('✅ Mensaje reenviado al grupo "Bot destino".');
+    // Verificar si alguna palabra está en el Set de keywords IT
+    if (words.some(word => keywordsIt.has(word))) {
+        foundIT = true;
+    }
 
-        // Reenviar al grupo "Mantenimiento"
-        const targetChatMantenimiento = await client.getChatById(groupMantenimientoId);
-        await targetChatMantenimiento.sendMessage(message.body);
+    // Verificar si alguna palabra está en el Set de keywords MAN
+    if (words.some(word => keywordsMan.has(word))) {
+        foundMan = true;
+    }
+
+    // Enviar al grupo correspondiente
+    if (foundIT) {
+        console.log('🔹 Mensaje contiene una palabra clave IT, reenviando al grupo IT...');
+        const targetChatIT = await client.getChatById(groupBotDestinoId);
+        await targetChatIT.sendMessage(message.body);
+        console.log('✅ Mensaje reenviado al grupo "IT".');
+    }
+
+    if (foundMan) {
+        console.log('🔹 Mensaje contiene una palabra clave MAN, reenviando al grupo Mantenimiento...');
+        const targetChatMan = await client.getChatById(groupMantenimientoId);
+        await targetChatMan.sendMessage(message.body);
         console.log('✅ Mensaje reenviado al grupo "Mantenimiento".');
     }
 });
 
 // Inicializa el cliente de WhatsApp
 client.initialize();
-//man3
+//MAN 4
