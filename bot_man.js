@@ -51,8 +51,10 @@ client.on('ready', async () => {
 client.on('message', async message => {
     console.log(`📩 Mensaje recibido: "${message.body}"`);
 
-    const groupITPruebaId = '120363389868056953@g.us';  // Grupo IT
-    const groupMantenimientoId = '120363408965534037@g.us';  // Grupo Mantenimiento
+    // IDs de los grupos
+    const groupPruebaId = '120363389868056953@g.us';  // Grupo prueba (donde llegan los mensajes de todos)
+    const groupITDestinoId = '120363408965534037@g.us';  // Grupo IT destino
+    const groupManDestinoId = '120363393791264206@g.us';  // Grupo Mantenimiento destino
 
     const chat = await message.getChat();
 
@@ -67,18 +69,22 @@ client.on('message', async message => {
     const itMatch = words.some(word => keywordsIt.has(word));
     const manMatch = words.some(word => keywordsMan.has(word));
 
-    if (itMatch) {
-        console.log('🔹 Mensaje contiene palabra clave de IT, reenviando al grupo IT...');
-        const targetChat = await client.getChatById(groupITPruebaId);
-        await targetChat.sendMessage(message.body);
-        console.log('✅ Mensaje reenviado al grupo IT.');
-    } else if (manMatch) {
-        console.log('🔹 Mensaje contiene palabra clave de Mantenimiento, reenviando al grupo Mantenimiento...');
-        const targetChat = await client.getChatById(groupMantenimientoId);
-        await targetChat.sendMessage(message.body);
-        console.log('✅ Mensaje reenviado al grupo Mantenimiento.');
+    // Verificar que el mensaje sea del grupo de prueba
+    if (chat.id._serialized === groupPruebaId) {
+        if (itMatch) {
+            console.log('🔹 Mensaje contiene palabra clave de IT, reenviando al grupo IT...');
+            const targetChat = await client.getChatById(groupITDestinoId);
+            await targetChat.sendMessage(message.body);
+            console.log('✅ Mensaje reenviado al grupo IT.');
+        } else if (manMatch) {
+            console.log('🔹 Mensaje contiene palabra clave de Mantenimiento, reenviando al grupo Mantenimiento...');
+            const targetChat = await client.getChatById(groupManDestinoId);
+            await targetChat.sendMessage(message.body);
+            console.log('✅ Mensaje reenviado al grupo Mantenimiento.');
+        }
     }
 });
 
 // Inicializa el cliente de WhatsApp
 client.initialize();
+//PRUEBA MAN
