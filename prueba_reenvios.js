@@ -11,6 +11,9 @@ let keywordsIt = new Set();
 let keywordsMan = new Set();
 let keywordsAma = new Set();
 
+// Mensajes originales que se enviaron a IT, se utilizarán cuando se reciba "Listo"
+let originalMessagesIT = new Map();
+
 function loadKeywords() {
     try {
         // Cargar palabras clave de IT
@@ -62,74 +65,74 @@ client.on('message', async message => {
     const groupBotDestinoId = '120363408965534037@g.us';  
     const groupMantenimientoId = '120363393791264206@g.us';  
     const groupAmaId = '120363409776076000@g.us'; 
+    const groupPruebaId = '120363389868056953@g.us';  // ID del grupo Prueba
 
     const chat = await message.getChat();
 
     if (!chat.id._serialized.endsWith('@g.us')) return;
-    if (chat.id._serialized !== groupITPruebaId) return;
 
-    const cleanedMessage = message.body.toLowerCase().replace(/[.,!?()]/g, '');
-    const words = cleanedMessage.split(/\s+/);
+    // Procesamiento normal para otros grupos
+    if (chat.id._serialized !== groupITPruebaId) {
+        const cleanedMessage = message.body.toLowerCase().replace(/[.,!?()]/g, '');
+        const words = cleanedMessage.split(/\s+/);
 
-    let foundIT = words.some(word => keywordsIt.has(word));
-    let foundMan = words.some(word => keywordsMan.has(word));
-    let foundAma = words.some(word => keywordsAma.has(word));
+        let foundIT = words.some(word => keywordsIt.has(word));
+        let foundMan = words.some(word => keywordsMan.has(word));
+        let foundAma = words.some(word => keywordsAma.has(word));
 
-    let media = null;
-    if (message.hasMedia) {
-        media = await message.downloadMedia();
+        let media = null;
+        if (message.hasMedia) {
+            media = await message.downloadMedia();
+        }
+
+        if (foundIT) {
+            const targetChatIT = await client.getChatById(groupBotDestinoId);
+            await targetChatIT.sendMessage(message.body);
+            if (media) await targetChatIT.sendMessage(media);
+        }
+
+        if (foundMan) {
+            const targetChatMan = await client.getChatById(groupMantenimientoId);
+            await targetChatMan.sendMessage(message.body);
+            if (media) await targetChatMan.sendMessage(media);
+        }
+
+        if (foundAma) {
+            const targetChatAma = await client.getChatById(groupAmaId);
+            await targetChatAma.sendMessage(message.body);
+            if (media) await targetChatAma.sendMessage(media);
+        }
+
+        return;
     }
 
-    // Reenvío con log para cada grupo
-    let originalMessageId;
-    let originalMessageText = message.body;  // Guardar el texto original del mensaje
+    // Procesamiento específico para IT
+    const cleanedMessageIT = message.body.toLowerCase().replace(/[.,!?()]/g, '');
+    const wordsIT = cleanedMessageIT.split(/\s+/);
 
-    if (foundIT) {
-        console.log("Mensaje con palabra clave para IT, reenviando...");
+    let foundITMessage = wordsIT.some(word => keywordsIt.has(word));
+
+    if (chat.id._serialized === groupPruebaId && foundITMessage) {
         const targetChatIT = await client.getChatById(groupBotDestinoId);
-        const sentMessage = await targetChatIT.sendMessage(message.body);
-        originalMessageId = sentMessage.id._serialized; // Guardamos el ID del mensaje para futuras respuestas
-
-        if (media) await targetChatIT.sendMessage(media);
+        await targetChatIT.sendMessage(message.body);
+        originalMessagesIT.set(message.id._serialized, message.body); // Guardamos el mensaje original
     }
 
-    if (foundMan) {
-        console.log("Mensaje con palabra clave para Mantenimiento, reenviando...");
-        const targetChatMan = await client.getChatById(groupMantenimientoId);
-        await targetChatMan.sendMessage(message.body);
-        if (media) await targetChatMan.sendMessage(media);
-    }
-
-    if (foundAma) {
-        console.log("Mensaje con palabra clave para Ama de llaves, reenviando...");
-        const targetChatAma = await client.getChatById(groupAmaId);
-        await targetChatAma.sendMessage(message.body);
-        if (media) await targetChatAma.sendMessage(media);
-    }
-
-    // Evento para recibir respuestas a los mensajes reenviados (marcar como resuelto)
-    client.on('message', async (response) => {
-        // Verificar que la respuesta es al mensaje original
-        if (response.reply_to_message && response.reply_to_message.id._serialized === originalMessageId) {
-            console.log(`✅ Respuesta recibida a la incidencia: "${response.body}"`);
-
-            // Notificar en el grupo original
-            const chatOriginal = await client.getChatById(groupITPruebaId); // Grupo donde se reportó la incidencia
-            await chatOriginal.sendMessage(`✅ El problema: "${originalMessageText}" ha sido resuelto. ¡Gracias por tu paciencia!`);
-
-            // Opcional: Enviar el mensaje de resolución a los demás grupos
-            if (foundMan) {
-                const targetChatMan = await client.getChatById(groupMantenimientoId);
-                await targetChatMan.sendMessage(`✅ El problema: "${originalMessageText}" ha sido resuelto.`);
-            }
-
-            if (foundAma) {
-                const targetChatAma = await client.getChatById(groupAmaId);
-                await targetChatAma.sendMessage(`✅ El problema: "${originalMessageText}" ha sido resuelto.`);
+    // Si un mensaje en IT es "Listo", y es respuesta al mensaje del bot
+    if (chat.id._serialized === groupITPruebaId && message.body.toLowerCase() === "listo" && message.hasQuotedMsg) {
+        const quotedMessage = await message.getQuotedMessage();
+        
+        // Verificamos si el mensaje citado es uno enviado por el bot
+        if (quotedMessage.fromMe) {
+            const originalMessage = originalMessagesIT.get(quotedMessage.id._serialized);
+            if (originalMessage) {
+                const targetChatPrueba = await client.getChatById(groupPruebaId);
+                await targetChatPrueba.sendMessage(`El problema "${originalMessage}" ya se resolvió.`);
+                originalMessagesIT.delete(quotedMessage.id._serialized);  // Eliminar el mensaje de la lista
             }
         }
-    });
+    }
 });
 
 client.initialize();
-//reenvios
+//REENVIOS
