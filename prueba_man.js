@@ -7,15 +7,23 @@ const client = new Client({
 });
 
 // Cargar palabras clave en un Set (para búsqueda rápida)
-let keywords = new Set();
+let keywordsIt = new Set();
+let keywordsMan = new Set();
 
 function loadKeywords() {
     try {
-        const data = fs.readFileSync('keywords_it.txt', 'utf8');
-        keywords = new Set(data.split('\n').map(word => word.trim().toLowerCase()).filter(word => word));
-        console.log('✅ Palabras clave cargadas:', [...keywords]);
+        // Cargar palabras clave de IT
+        const dataIt = fs.readFileSync('keywords_it.txt', 'utf8');
+        keywordsIt = new Set(dataIt.split('\n').map(word => word.trim().toLowerCase()).filter(word => word));
+        console.log('✅ Palabras clave IT cargadas:', [...keywordsIt]);
+
+        // Cargar palabras clave de Man
+        const dataMan = fs.readFileSync('keywords_man.txt', 'utf8');
+        keywordsMan = new Set(dataMan.split('\n').map(word => word.trim().toLowerCase()).filter(word => word));
+        console.log('✅ Palabras clave Man cargadas:', [...keywordsMan]);
+
     } catch (err) {
-        console.error('❌ Error al leer el archivo de palabras clave:', err);
+        console.error('❌ Error al leer los archivos de palabras clave:', err);
     }
 }
 
@@ -62,7 +70,7 @@ client.on('message', async message => {
     const words = cleanedMessage.split(/\s+/);  // Divide en palabras exactas
 
     // Verificar si alguna palabra está en el Set de keywords
-    if (words.some(word => keywords.has(word))) {
+    if (words.some(word => keywordsIt.has(word) || keywordsMan.has(word))) {
         console.log('🔹 Mensaje contiene una palabra clave, reenviando...');
 
         const targetChat = await client.getChatById(groupBotDestinoId);
@@ -73,4 +81,5 @@ client.on('message', async message => {
 
 // Inicializa el cliente de WhatsApp
 client.initialize();
-//MAN
+
+//MAN2
