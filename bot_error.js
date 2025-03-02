@@ -51,6 +51,9 @@ client.on('ready', async () => {
     console.log(`Grupos disponibles: ${groups.length}`);
     groups.forEach(group => {
         console.log(`Grupo: ${group.name} - ID: ${group.id._serialized}`);
+        
+        // Enviar mensaje "VICEBOT🤖 en Línea" a cada grupo
+        group.sendMessage("VICEBOT🤖 en Línea");
     });
 });
 
@@ -122,5 +125,4 @@ client.on('message', async message => {
 });
 
 client.initialize();
-
-//bot avanzado con respuesta rapida 2
+//Envio de inicio
