@@ -7,15 +7,22 @@ const path = require('path');
 const sessionPath = '/home/gustavo.peralta/whatsapp-bot/.wwebjs_auth/session/';
 
 // Eliminar la carpeta de sesión si existe
-function deleteSessionIfNeeded() {
+async function deleteSessionIfNeeded() {
     try {
         if (fs.existsSync(sessionPath)) {
+            // Intentar eliminar el directorio de sesión después de esperar un momento
+            await wait(2000); // Espera de 2 segundos
             fs.rmdirSync(sessionPath, { recursive: true });
             console.log('Directorio de sesión eliminado para evitar errores de autenticación.');
         }
     } catch (err) {
         console.error('Error al eliminar la sesión:', err);
     }
+}
+
+// Función de espera
+function wait(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 deleteSessionIfNeeded();  // Llamada a la función antes de iniciar el bot
@@ -153,4 +160,4 @@ client.on('message', async message => {
 });
 
 client.initialize();
-//Mejoras implementadas
+//Cerrar sesion con app
