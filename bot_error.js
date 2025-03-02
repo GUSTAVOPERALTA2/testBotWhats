@@ -1,6 +1,16 @@
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
-const fs = require('fs');  
+const fs = require('fs');
+const { execSync } = require('child_process'); // Importamos child_process
+
+// Eliminar la sesión antes de iniciar el bot
+const sessionPath = '/home/gustavo.peralta/whatsapp-bot/.wwebjs_auth/session';
+try {
+    execSync(`rm -rf ${sessionPath}`);
+    console.log('Sesión eliminada exitosamente.');
+} catch (err) {
+    console.error('Error al eliminar la sesión:', err);
+}
 
 const client = new Client({
     authStrategy: new LocalAuth()
@@ -25,7 +35,6 @@ function loadKeywords() {
         keywordsAma = new Set(dataAma.split('\n').map(word => word.trim().toLowerCase()).filter(word => word));
         console.log('Palabras clave Ama cargadas:', [...keywordsAma]);
 
-        // Cargar las palabras clave de confirmación desde el archivo
         const confirmData = fs.readFileSync('keywords_confirm.txt', 'utf8');
         confirmationKeywords = confirmData.split('\n').map(phrase => phrase.trim().toLowerCase()).filter(phrase => phrase);
         console.log('Frases de confirmación cargadas:', confirmationKeywords);
@@ -51,9 +60,11 @@ client.on('ready', async () => {
     console.log(`Grupos disponibles: ${groups.length}`);
     groups.forEach(group => {
         console.log(`Grupo: ${group.name} - ID: ${group.id._serialized}`);
-        
-        // Enviar mensaje "VICEBOT🤖 en Línea" a cada grupo
-        group.sendMessage("VICEBOT🤖 en Línea");
+    });
+
+    // Mandar mensaje de "VICEBOT🤖 en Línea" a los grupos
+    groups.forEach(group => {
+        group.sendMessage('VICEBOT🤖 en Línea');
     });
 });
 
@@ -69,7 +80,6 @@ client.on('message', async message => {
     const chat = await message.getChat();
     if (!chat.id._serialized.endsWith('@g.us')) return;
 
-    // Primer bloque para manejar palabras clave
     const cleanedMessage = message.body.toLowerCase().replace(/[.,!?()]/g, '');
     if (!cleanedMessage.trim()) return;
 
@@ -92,29 +102,22 @@ client.on('message', async message => {
         const forwardedMessage = await targetChat.sendMessage(`Nueva tarea recibida: \n \n*${message.body}*`);
         if (media) await targetChat.sendMessage(media);
         console.log(`Mensaje reenviado a ${category}: ${message.body}`);
-        
-        // Enviar confirmación al chat principal de que el mensaje fue reenviado a un grupo
-        await chat.sendMessage(`El mensaje fue reenviado al grupo ${category}.`);
     }
 
     if (foundIT) await forwardMessage(groupBotDestinoId, "IT");
     if (foundMan) await forwardMessage(groupMantenimientoId, "Mantenimiento");
     if (foundAma) await forwardMessage(groupAmaId, "Ama");
 
-    // Segundo bloque para manejar confirmación de tarea
     if (message.hasQuotedMsg) {
         const quotedMessage = await message.getQuotedMessage();
         if (quotedMessage.body.startsWith("Nueva tarea recibida: \n")) {
-            // Eliminamos el prefijo "Nueva tarea recibida" y ponemos la tarea en negritas
             const taskMessage = quotedMessage.body.replace('Nueva tarea recibida: \n \n', '');
             const confirmationMessage = `La tarea: \n ${taskMessage} \n esta *COMPLETADA*.`;
 
-            // Lógica para verificar si la respuesta contiene las palabras clave de confirmación
             const responseMessage = message.body.toLowerCase();
             if (confirmationKeywords.some(keyword => responseMessage.includes(keyword))) {
                 await chat.sendMessage(confirmationMessage);
 
-                // Reenviar solo al grupo de prueba
                 await client.getChatById(groupPruebaId).then(groupChat => {
                     groupChat.sendMessage(confirmationMessage);
                 });
@@ -128,4 +131,5 @@ client.on('message', async message => {
 });
 
 client.initialize();
-//Reenvio de mensajes
+
+//Eliminacion de sesion
