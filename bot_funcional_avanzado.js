@@ -38,17 +38,17 @@ client.on('ready', async () => {
     loadKeywords();
 
     const chats = await client.getChats();
-    console.log(Chats disponibles: ${chats.length});
+    console.log(`Chats disponibles: ${chats.length}`);
 
     const groups = chats.filter(chat => chat.id._serialized.endsWith('@g.us'));
-    console.log(Grupos disponibles: ${groups.length});
+    console.log(`Grupos disponibles: ${groups.length}`);
     groups.forEach(group => {
-        console.log(Grupo: ${group.name} - ID: ${group.id._serialized});
+        console.log(`Grupo: ${group.name} - ID: ${group.id._serialized}`);
     });
 });
 
 client.on('message', async message => {
-    console.log(Mensaje recibido: "${message.body}");
+    console.log(`Mensaje recibido: "${message.body}"`);
 
     const groupITPruebaId = '120363389868056953@g.us';  
     const groupBotDestinoId = '120363408965534037@g.us';  
@@ -78,9 +78,9 @@ client.on('message', async message => {
 
     async function forwardMessage(targetGroupId, category) {
         const targetChat = await client.getChatById(targetGroupId);
-        const forwardedMessage = await targetChat.sendMessage(Nueva tarea recibida: \n \n*${message.body}*);
+        const forwardedMessage = await targetChat.sendMessage(`Nueva tarea recibida: \n \n*${message.body}*`);
         if (media) await targetChat.sendMessage(media);
-        console.log(Mensaje reenviado a ${category}: ${message.body});
+        console.log(`Mensaje reenviado a ${category}: ${message.body}`);
     }
 
     if (foundIT) await forwardMessage(groupBotDestinoId, "IT");
@@ -93,12 +93,12 @@ client.on('message', async message => {
         if (quotedMessage.body.startsWith("Nueva tarea recibida: \n")) {
             // Eliminamos el prefijo "Nueva tarea recibida" y ponemos la tarea en negritas
             const taskMessage = quotedMessage.body.replace('Nueva tarea recibida: \n \n', '');
-            const confirmationMessage = La tarea ${taskMessage} ha sido completada.;
+            const confirmationMessage = `La tarea ${taskMessage} ha sido completada.`;
             await chat.sendMessage(confirmationMessage);
 	    await client.getChatById(groupITPruebaId).then(groupChat => {
 		groupChat.sendMessage(confirmationMessage);
 	    });
-            console.log(Confirmación recibida en ${chat.name}: ${taskMessage});
+            console.log(`Confirmación recibida en ${chat.name}: ${taskMessage}`);
         }
     }
 });
