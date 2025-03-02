@@ -1,5 +1,5 @@
 client.on('message', async message => {
-    console.log(`📩 Mensaje recibido: "${message.body}"`);
+    console.log(`Mensaje recibido: "${message.body}"`);
 
     const groupITPruebaId = '120363389868056953@g.us';  
     const groupBotDestinoId = '120363408965534037@g.us';  
@@ -29,9 +29,9 @@ client.on('message', async message => {
 
     async function forwardMessage(targetGroupId, category) {
         const targetChat = await client.getChatById(targetGroupId);
-        const forwardedMessage = await targetChat.sendMessage(`⏳ Nueva tarea recibida: \n"${message.body}"`);
+        const forwardedMessage = await targetChat.sendMessage(`Nueva tarea recibida: \n"${message.body}"`);
         if (media) await targetChat.sendMessage(media);
-        console.log(`📤 Mensaje reenviado a ${category}: ${message.body}`);
+        console.log(`Mensaje reenviado a ${category}: ${message.body}`);
     }
 
     if (foundIT) await forwardMessage(groupBotDestinoId, "IT");
@@ -41,13 +41,13 @@ client.on('message', async message => {
     // Segundo bloque para manejar confirmación de tarea
     if (message.hasQuotedMsg) {
         const quotedMessage = await message.getQuotedMessage();
-        if (quotedMessage.body.startsWith("⏳ Nueva tarea recibida")) {
-            // Eliminamos el prefijo "⏳ Nueva tarea recibida" y ponemos la tarea en negritas
-            const taskMessage = quotedMessage.body.replace('⏳ Nueva tarea recibida: \n', '');
-            const confirmationMessage = `La tarea **${taskMessage}** ha sido completada. ✅`;
+        if (quotedMessage.body.startsWith("Nueva tarea recibida: \n")) {
+            // Eliminamos el prefijo "Nueva tarea recibida" y ponemos la tarea en negritas
+            const taskMessage = quotedMessage.body.replace('Nueva tarea recibida: \n', '');
+            const confirmationMessage = `La tarea **${taskMessage}** ha sido completada.`;
             await chat.sendMessage(confirmationMessage);
-            console.log(`📢 Confirmación recibida en ${chat.name}: ${taskMessage}`);
+            console.log(`Confirmación recibida en ${chat.name}: ${taskMessage}`);
         }
     }
 });
-//Confirmacion avanzada de tareas 2
+//Confirmacion avanzada de menasjes
