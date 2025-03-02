@@ -61,6 +61,7 @@ client.on('message', async message => {
     const groupBotDestinoId = '120363408965534037@g.us';  
     const groupMantenimientoId = '120363393791264206@g.us';  
     const groupAmaId = '120363409776076000@g.us'; 
+    const groupPruebaId = '120363389868056953@g.us'; // ID del grupo de Prueba
 
     const chat = await message.getChat();
     if (!chat.id._serialized.endsWith('@g.us')) return;
@@ -107,14 +108,8 @@ client.on('message', async message => {
             if (confirmationKeywords.some(keyword => responseMessage.includes(keyword))) {
                 await chat.sendMessage(confirmationMessage);
 
-                // Enviar la confirmación también a los otros grupos
-                await client.getChatById(groupITPruebaId).then(groupChat => {
-                    groupChat.sendMessage(confirmationMessage);
-                });
-                await client.getChatById(groupMantenimientoId).then(groupChat => {
-                    groupChat.sendMessage(confirmationMessage);
-                });
-                await client.getChatById(groupAmaId).then(groupChat => {
+                // Reenviar solo al grupo de prueba
+                await client.getChatById(groupPruebaId).then(groupChat => {
                     groupChat.sendMessage(confirmationMessage);
                 });
 
@@ -127,4 +122,5 @@ client.on('message', async message => {
 });
 
 client.initialize();
-//Bot avanzado con confirmacion en todos los grupos
+
+//bot avanzado con respuesta rapida
