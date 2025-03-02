@@ -1,3 +1,52 @@
+const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
+const qrcode = require('qrcode-terminal');
+const fs = require('fs');  
+
+const client = new Client({
+    authStrategy: new LocalAuth()
+});
+
+let keywordsIt = new Set();
+let keywordsMan = new Set();
+let keywordsAma = new Set();
+
+function loadKeywords() {
+    try {
+        const dataIt = fs.readFileSync('keywords_it.txt', 'utf8');
+        keywordsIt = new Set(dataIt.split('\n').map(word => word.trim().toLowerCase()).filter(word => word));
+        console.log('Palabras clave IT cargadas:', [...keywordsIt]);
+
+        const dataMan = fs.readFileSync('keywords_man.txt', 'utf8');
+        keywordsMan = new Set(dataMan.split('\n').map(word => word.trim().toLowerCase()).filter(word => word));
+        console.log('Palabras clave Man cargadas:', [...keywordsMan]);
+
+        const dataAma = fs.readFileSync('keywords_ama.txt', 'utf8');
+        keywordsAma = new Set(dataAma.split('\n').map(word => word.trim().toLowerCase()).filter(word => word));
+        console.log('Palabras clave Ama cargadas:', [...keywordsAma]);
+    } catch (err) {
+        console.error('Error al leer los archivos de palabras clave:', err);
+    }
+}
+
+client.on('qr', qr => {
+    console.log('Escanea este QR con WhatsApp Web:');
+    qrcode.generate(qr, { small: true });
+});
+
+client.on('ready', async () => {
+    console.log('Bot de WhatsApp conectado y listo.');
+    loadKeywords();
+
+    const chats = await client.getChats();
+    console.log(`Chats disponibles: ${chats.length}`);
+
+    const groups = chats.filter(chat => chat.id._serialized.endsWith('@g.us'));
+    console.log(`Grupos disponibles: ${groups.length}`);
+    groups.forEach(group => {
+        console.log(`Grupo: ${group.name} - ID: ${group.id._serialized}`);
+    });
+});
+
 client.on('message', async message => {
     console.log(`Mensaje recibido: "${message.body}"`);
 
@@ -50,4 +99,6 @@ client.on('message', async message => {
         }
     }
 });
-//Confirmacion avanzada de menasjes
+
+client.initialize();
+//Confirmacion avanzada 3
