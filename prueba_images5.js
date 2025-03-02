@@ -14,41 +14,41 @@ function loadKeywords() {
     try {
         const dataIt = fs.readFileSync('keywords_it.txt', 'utf8');
         keywordsIt = new Set(dataIt.split('\n').map(word => word.trim().toLowerCase()).filter(word => word));
-        console.log('? Palabras clave IT cargadas:', [...keywordsIt]);
+        console.log('✅ Palabras clave IT cargadas:', [...keywordsIt]);
 
         const dataMan = fs.readFileSync('keywords_man.txt', 'utf8');
         keywordsMan = new Set(dataMan.split('\n').map(word => word.trim().toLowerCase()).filter(word => word));
-        console.log('? Palabras clave Man cargadas:', [...keywordsMan]);
+        console.log('✅ Palabras clave Man cargadas:', [...keywordsMan]);
 
         const dataAma = fs.readFileSync('keywords_ama.txt', 'utf8');
         keywordsAma = new Set(dataAma.split('\n').map(word => word.trim().toLowerCase()).filter(word => word));
-        console.log('? Palabras clave Ama cargadas:', [...keywordsAma]);
+        console.log('✅ Palabras clave Ama cargadas:', [...keywordsAma]);
     } catch (err) {
-        console.error('? Error al leer los archivos de palabras clave:', err);
+        console.error('❌ Error al leer los archivos de palabras clave:', err);
     }
 }
 
 client.on('qr', qr => {
-    console.log('?? Escanea este QR con WhatsApp Web:');
+    console.log('🔹 Escanea este QR con WhatsApp Web:');
     qrcode.generate(qr, { small: true });
 });
 
 client.on('ready', async () => {
-    console.log('? Bot de WhatsApp conectado y listo.');
+    console.log('✅ Bot de WhatsApp conectado y listo.');
     loadKeywords();
 
     const chats = await client.getChats();
-    console.log(`?? Chats disponibles: ${chats.length}`);
+    console.log(`📌 Chats disponibles: ${chats.length}`);
 
     const groups = chats.filter(chat => chat.id._serialized.endsWith('@g.us'));
-    console.log(`?? Grupos disponibles: ${groups.length}`);
+    console.log(`📌 Grupos disponibles: ${groups.length}`);
     groups.forEach(group => {
-        console.log(`?? Grupo: ${group.name} - ID: ${group.id._serialized}`);
+        console.log(`📌 Grupo: ${group.name} - ID: ${group.id._serialized}`);
     });
 });
 
 client.on('message', async message => {
-    console.log(`?? Mensaje recibido: "${message.body}"`);
+    console.log(`📩 Mensaje recibido: "${message.body}"`);
 
     const groupITPruebaId = '120363389868056953@g.us';  
     const groupBotDestinoId = '120363408965534037@g.us';  
@@ -77,9 +77,9 @@ client.on('message', async message => {
 
     async function forwardMessage(targetGroupId, category) {
         const targetChat = await client.getChatById(targetGroupId);
-        const forwardedMessage = await targetChat.sendMessage(`? Nueva tarea recibida: \n"${message.body}"`);
+        const forwardedMessage = await targetChat.sendMessage(`⏳ Nueva tarea recibida: \n"${message.body}"`);
         if (media) await targetChat.sendMessage(media);
-        console.log(`?? Mensaje reenviado a ${category}: ${message.body}`);
+        console.log(`📤 Mensaje reenviado a ${category}: ${message.body}`);
     }
 
     if (foundIT) await forwardMessage(groupBotDestinoId, "IT");
@@ -88,15 +88,18 @@ client.on('message', async message => {
 });
 
 client.on('message', async message => {
-    const confirmationMessage = "? Tarea completada";
+    const confirmationMessage = "✅ Tarea completada";
     const chat = await message.getChat();
     if (!chat.id._serialized.endsWith('@g.us')) return;
 
-    if (message.body.trim() === confirmationMessage) {
-        await chat.sendMessage("?? ¡Tarea confirmada! ?");
-        console.log(`?? Confirmación recibida en ${chat.name}`);
+    if (message.hasQuotedMsg) {
+        const quotedMessage = await message.getQuotedMessage();
+        if (quotedMessage.body.startsWith("⏳ Nueva tarea recibida")) {
+            await chat.sendMessage("🎉 ¡Tarea confirmada! ✅");
+            console.log(`📢 Confirmación recibida en ${chat.name}`);
+        }
     }
 });
 
 client.initialize();
-//CONFIRMAR LECTURA
+//confirmacion avanzada de tareas
