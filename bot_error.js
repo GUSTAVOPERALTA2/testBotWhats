@@ -92,6 +92,9 @@ client.on('message', async message => {
         const forwardedMessage = await targetChat.sendMessage(`Nueva tarea recibida: \n \n*${message.body}*`);
         if (media) await targetChat.sendMessage(media);
         console.log(`Mensaje reenviado a ${category}: ${message.body}`);
+        
+        // Enviar confirmación al chat principal de que el mensaje fue reenviado a un grupo
+        await chat.sendMessage(`El mensaje fue reenviado al grupo ${category}.`);
     }
 
     if (foundIT) await forwardMessage(groupBotDestinoId, "IT");
@@ -125,4 +128,4 @@ client.on('message', async message => {
 });
 
 client.initialize();
-//Envio de inicio
+//Reenvio de mensajes
