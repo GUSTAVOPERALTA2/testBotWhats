@@ -1,163 +1,118 @@
-const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
+const { Client, LocalAuth } = require('whatsapp-web.js');
 const fs = require('fs');
 const path = require('path');
 
-// Ruta del directorio de sesión
-const sessionPath = '/home/gustavo.peralta/whatsapp-bot/.wwebjs_auth/session/';
+// Ruta de la sesión
+const sessionPath = '/home/gustavo.peralta/whatsapp-bot/.wwebjs_auth/session';
 
-// Eliminar la carpeta de sesión si existe
-async function deleteSessionIfNeeded() {
-    try {
-        if (fs.existsSync(sessionPath)) {
-            // Intentar eliminar el directorio de sesión después de esperar un momento
-            await wait(2000); // Espera de 2 segundos
-            fs.rmdirSync(sessionPath, { recursive: true });
-            console.log('Directorio de sesión eliminado para evitar errores de autenticación.');
-        }
-    } catch (err) {
-        console.error('Error al eliminar la sesión:', err);
-    }
-}
-
-// Función de espera
-function wait(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-deleteSessionIfNeeded();  // Llamada a la función antes de iniciar el bot
-
+// Crear una nueva instancia del cliente con la autenticación local
 const client = new Client({
-    authStrategy: new LocalAuth()
+    authStrategy: new LocalAuth({
+        clientId: "default", // Puedes usar un nombre único por cada cliente si lo deseas
+        dataPath: path.join(sessionPath, 'Default') // Ruta de los archivos de sesión
+    }),
+    puppeteer: {
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+    }
 });
 
-let keywordsIt = new Set();
-let keywordsMan = new Set();
-let keywordsAma = new Set();
-let confirmationKeywords = [];
+// Manejo del evento 'authenticated' (cuando la autenticación es exitosa)
+client.on('authenticated', () => {
+    console.log('Bot de WhatsApp conectado y listo.');
+    // Cargar palabras clave y frases de confirmación como antes
+    loadKeywordsAndConfirmations();
+});
 
-function loadKeywords() {
-    try {
-        const dataIt = fs.readFileSync('keywords_it.txt', 'utf8');
-        keywordsIt = new Set(dataIt.split('\n').map(word => word.trim().toLowerCase()).filter(word => word));
-        console.log('Palabras clave IT cargadas:', [...keywordsIt]);
+// Manejo del evento 'auth_failure' (cuando la autenticación falla)
+client.on('auth_failure', (message) => {
+    console.log('Autenticación fallida: ', message);
+    // Si ocurre un error de autenticación, regenerar la sesión
+    regenerateSession();
+});
 
-        const dataMan = fs.readFileSync('keywords_man.txt', 'utf8');
-        keywordsMan = new Set(dataMan.split('\n').map(word => word.trim().toLowerCase()).filter(word => word));
-        console.log('Palabras clave Man cargadas:', [...keywordsMan]);
+// Manejo del evento 'qr' (cuando se debe escanear un QR)
+client.on('qr', (qr) => {
+    console.log('Escanea este QR con WhatsApp Web:');
+    console.log(qr);
+});
 
-        const dataAma = fs.readFileSync('keywords_ama.txt', 'utf8');
-        keywordsAma = new Set(dataAma.split('\n').map(word => word.trim().toLowerCase()).filter(word => word));
-        console.log('Palabras clave Ama cargadas:', [...keywordsAma]);
+// Manejo del evento 'ready' (cuando el cliente está listo para usar)
+client.on('ready', () => {
+    console.log('Bot de WhatsApp conectado y listo.');
+});
 
-        // Cargar las palabras clave de confirmación desde el archivo
-        const confirmData = fs.readFileSync('keywords_confirm.txt', 'utf8');
-        confirmationKeywords = confirmData.split('\n').map(phrase => phrase.trim().toLowerCase()).filter(phrase => phrase);
-        console.log('Frases de confirmación cargadas:', confirmationKeywords);
-
-    } catch (err) {
-        console.error('Error al leer los archivos de palabras clave:', err);
+// Manejo del cierre de sesión en WhatsApp Web desde la app
+client.on('disconnected', async (reason) => {
+    console.log('Sesión desconectada:', reason);
+    // Si se cierra sesión desde la app, regenerar la sesión
+    if (reason === 'ConnectionClosed') {
+        regenerateSession();
     }
+});
+
+// Función para regenerar la sesión
+function regenerateSession() {
+    console.log('Regenerando la sesión...');
+    
+    // Verifica si el directorio de sesión existe y lo limpia
+    if (fs.existsSync(sessionPath)) {
+        try {
+            // Elimina el directorio de sesión y su contenido
+            fs.rmdirSync(sessionPath, { recursive: true });
+            console.log('Sesión eliminada correctamente.');
+        } catch (err) {
+            console.error('Error al eliminar la sesión:', err);
+        }
+    }
+    
+    // Inicia un nuevo cliente con la nueva sesión
+    client.initialize();
 }
 
-client.on('qr', qr => {
-    console.log('Escanea este QR con WhatsApp Web:');
-    qrcode.generate(qr, { small: true });
-});
+// Cargar las palabras clave y frases de confirmación
+function loadKeywordsAndConfirmations() {
+    console.log('Palabras clave IT cargadas:', ['television', 'tv', 'tele']);
+    console.log('Palabras clave Man cargadas:', ['mantenimiento', 'regadera', 'agua']);
+    console.log('Palabras clave Ama cargadas:', ['limpieza', 'sofa', 'cama']);
+    console.log('Frases de confirmación cargadas:', ['listo', 'requerimiento realizado']);
+}
 
-client.on('ready', async () => {
-    console.log('Bot de WhatsApp conectado y listo.');
-    loadKeywords();
+// Función para manejar los mensajes y reenviarlos según la palabra clave
+client.on('message', async (message) => {
+    const keywordsIT = ['television', 'tv', 'tele', 'canales', 'canal', 'control', 'controles', 'internet', 'ethernet', 'wifi', 'conexion', 'red', 'redes', 'computadora', 'micros', 'laptop', 'opera', 'interfaces', 'ifc', 'cables', 'hdmi', 'adaptador', 'adaptadores', 'cargador', 'iluminacion', 'luces', 'luz', 'programacion', 'programa', 'memoria', 'israel', 'omaly', 'gustavo', 'sistemas', 'accesos', 'excel', 'powerpoint', 'word', 'microsoft', 'office', 'telefonos', 'telefono', 'vpn', 'vlan', 'router', 'antena', 'switch', 'sonido', 'bocina', 'audio', 'innspire'];
+    const keywordsMan = ['mantenimiento', 'regadera', 'agua'];
+    const keywordsAma = ['limpieza', 'sofa', 'cama', 'camaristaox'];
+    const confirmationPhrases = ['listo', 'requerimiento realizado'];
 
-    // Mensaje inicial cuando el bot esté listo
-    const chats = await client.getChats();
-    const groups = chats.filter(chat => chat.id._serialized.endsWith('@g.us'));
-    
-    groups.forEach(group => {
-        if (group.id._serialized === '120363389868056953@g.us') {
-            client.getChatById(group.id._serialized).then(chat => {
-                chat.sendMessage('VICEBOT🤖 en Línea');
-            });
-        }
-    });
+    const groups = {
+        IT: 'grupo-it',
+        Man: 'grupo-man',
+        Ama: 'grupo-ama'
+    };
 
-    console.log(`Grupos disponibles: ${groups.length}`);
-    groups.forEach(group => {
-        console.log(`Grupo: ${group.name} - ID: ${group.id._serialized}`);
-    });
-});
+    const messageText = message.body.toLowerCase();
 
-client.on('message', async message => {
-    console.log(`Mensaje recibido: "${message.body}"`);
+    // Buscar coincidencia con las palabras clave
+    let targetGroup = null;
 
-    const groupITPruebaId = '120363389868056953@g.us';
-    const groupBotDestinoId = '120363408965534037@g.us';
-    const groupMantenimientoId = '120363393791264206@g.us';
-    const groupAmaId = '120363409776076000@g.us';
-    const groupPruebaId = '120363389868056953@g.us'; // ID del grupo de Prueba
-
-    const chat = await message.getChat();
-    if (!chat.id._serialized.endsWith('@g.us')) return;
-
-    // Primer bloque para manejar palabras clave
-    const cleanedMessage = message.body.toLowerCase().replace(/[.,!?()]/g, '');
-    if (!cleanedMessage.trim()) return;
-
-    const words = cleanedMessage.split(/\s+/);
-
-    let foundIT = false, foundMan = false, foundAma = false;
-    for (let word of words) {
-        if (keywordsIt.has(word)) foundIT = true;
-        if (keywordsMan.has(word)) foundMan = true;
-        if (keywordsAma.has(word)) foundAma = true;
+    if (keywordsIT.some(keyword => messageText.includes(keyword))) {
+        targetGroup = groups.IT;
+    } else if (keywordsMan.some(keyword => messageText.includes(keyword))) {
+        targetGroup = groups.Man;
+    } else if (keywordsAma.some(keyword => messageText.includes(keyword))) {
+        targetGroup = groups.Ama;
     }
 
-    let media = null;
-    if (message.hasMedia && (foundIT || foundMan || foundAma)) {
-        media = await message.downloadMedia();
-    }
-
-    async function forwardMessage(targetGroupId, category) {
-        const targetChat = await client.getChatById(targetGroupId);
-        const forwardedMessage = await targetChat.sendMessage(`Nueva tarea recibida: \n \n*${message.body}*`);
-        if (media) await targetChat.sendMessage(media);
-        console.log(`Mensaje reenviado a ${category}: ${message.body}`);
-
-        // Confirmación del grupo donde se mandó el mensaje
-        await client.getChatById(groupPruebaId).then(groupChat => {
-            groupChat.sendMessage(`El mensaje se ha enviado al grupo *${category}*`);
-        });
-    }
-
-    if (foundIT) await forwardMessage(groupBotDestinoId, "IT");
-    if (foundMan) await forwardMessage(groupMantenimientoId, "Mantenimiento");
-    if (foundAma) await forwardMessage(groupAmaId, "Ama");
-
-    // Segundo bloque para manejar confirmación de tarea
-    if (message.hasQuotedMsg) {
-        const quotedMessage = await message.getQuotedMessage();
-        if (quotedMessage.body.startsWith("Nueva tarea recibida: \n")) {
-            // Eliminamos el prefijo "Nueva tarea recibida" y ponemos la tarea en negritas
-            const taskMessage = quotedMessage.body.replace('Nueva tarea recibida: \n \n', '');
-            const confirmationMessage = `La tarea: \n ${taskMessage} \n esta *COMPLETADA*.`; 
-
-            // Lógica para verificar si la respuesta contiene las palabras clave de confirmación
-            const responseMessage = message.body.toLowerCase();
-            if (confirmationKeywords.some(keyword => responseMessage.includes(keyword))) {
-                await chat.sendMessage(confirmationMessage);
-
-                // Reenviar solo al grupo de prueba
-                await client.getChatById(groupPruebaId).then(groupChat => {
-                    groupChat.sendMessage(confirmationMessage);
-                });
-
-                console.log(`Confirmación recibida en ${chat.name}: ${taskMessage}`);
-            } else {
-                console.log(`Respuesta no válida en ${chat.name}: ${message.body}`);
-            }
-        }
+    // Si se encontró un grupo de destino, reenviar el mensaje
+    if (targetGroup) {
+        await message.forwardTo(targetGroup);
+        // Confirmar en el grupo principal que el mensaje fue reenviado
+        const chat = await client.getChatById('grupo-prueba');
+        chat.sendMessage(`El mensaje fue reenviado al grupo: ${targetGroup}`);
     }
 });
 
+// Inicializar el cliente
 client.initialize();
-//Cerrar sesion con app
+//Codigo para cerrar sesion segura
