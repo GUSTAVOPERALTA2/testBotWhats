@@ -102,6 +102,11 @@ client.on('message', async message => {
         const forwardedMessage = await targetChat.sendMessage(`Nueva tarea recibida: \n \n*${message.body}*`);
         if (media) await targetChat.sendMessage(media);
         console.log(`Mensaje reenviado a ${category}: ${message.body}`);
+        
+        // Confirmación de envío al grupo de prueba
+        await client.getChatById(groupPruebaId).then(groupChat => {
+            groupChat.sendMessage(`Mensaje enviado al grupo ${category}: \n\n*${message.body}*`);
+        });
     }
 
     if (foundIT) await forwardMessage(groupBotDestinoId, "IT");
@@ -132,4 +137,5 @@ client.on('message', async message => {
 
 client.initialize();
 
-//Eliminacion de sesion
+
+//Eliminar sesion y reenvio
