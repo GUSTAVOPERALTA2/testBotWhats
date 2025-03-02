@@ -9,7 +9,7 @@ const client = new Client({
 let keywordsIt = new Set();
 let keywordsMan = new Set();
 let keywordsAma = new Set();
-let confirmationKeywords = [];
+let keywordsConfirm = new Set();
 
 function loadKeywords() {
     try {
@@ -25,10 +25,9 @@ function loadKeywords() {
         keywordsAma = new Set(dataAma.split('\n').map(word => word.trim().toLowerCase()).filter(word => word));
         console.log('Palabras clave Ama cargadas:', [...keywordsAma]);
 
-        const confirmData = fs.readFileSync('keywords_confirm.txt', 'utf8');
-        confirmationKeywords = confirmData.split('\n').map(phrase => phrase.trim().toLowerCase()).filter(phrase => phrase);
-        console.log('Frases de confirmación cargadas:', confirmationKeywords);
-        
+        const dataConfirm = fs.readFileSync('keywords_confirm.txt', 'utf8');
+        keywordsConfirm = new Set(dataConfirm.split('\n').map(word => word.trim().toLowerCase()).filter(word => word));
+        console.log('Palabras clave de confirmación cargadas:', [...keywordsConfirm]);
     } catch (err) {
         console.error('Error al leer los archivos de palabras clave:', err);
     }
@@ -48,28 +47,14 @@ client.on('ready', async () => {
 
     const groups = chats.filter(chat => chat.id._serialized.endsWith('@g.us'));
     console.log(`Grupos disponibles: ${groups.length}`);
+    groups.forEach(group => {
+        console.log(`Grupo: ${group.name} - ID: ${group.id._serialized}`);
+    });
 
-    const botConnectedMessage = "VICEBOT CONECTADO 🤖\nBy: Gustavo Peralta";
-
-    for (const group of groups) {
-        await client.sendMessage(group.id._serialized, botConnectedMessage);
-    }
-
-    console.log("Mensaje de conexión enviado a todos los grupos.");
-});
-
-client.on('disconnected', async () => {
-    console.log("VICEBOT se ha desconectado.");
-
-    const chats = await client.getChats();
-    const groups = chats.filter(chat => chat.id._serialized.endsWith('@g.us'));
-    const botDisconnectedMessage = "El servicio VICEBOT 🤖 está temporalmente desconectado, por favor avise a su equipo de TI.";
-
-    for (const group of groups) {
-        await client.sendMessage(group.id._serialized, botDisconnectedMessage);
-    }
-
-    console.log("Mensaje de desconexión enviado a todos los grupos.");
+    // Enviar mensaje de bienvenida cuando el bot se inicia
+    const groupITPruebaId = '120363389868056953@g.us';
+    const groupChat = await client.getChatById(groupITPruebaId);
+    await groupChat.sendMessage('VICEBOT CONECTADO 🤖\nBy: Gustavo Peralta');
 });
 
 client.on('message', async message => {
@@ -79,11 +64,11 @@ client.on('message', async message => {
     const groupBotDestinoId = '120363408965534037@g.us';  
     const groupMantenimientoId = '120363393791264206@g.us';  
     const groupAmaId = '120363409776076000@g.us'; 
-    const groupPruebaId = '120363389868056953@g.us';
 
     const chat = await message.getChat();
     if (!chat.id._serialized.endsWith('@g.us')) return;
 
+    // Primer bloque para manejar palabras clave
     const cleanedMessage = message.body.toLowerCase().replace(/[.,!?()]/g, '');
     if (!cleanedMessage.trim()) return;
 
@@ -103,7 +88,7 @@ client.on('message', async message => {
 
     async function forwardMessage(targetGroupId, category) {
         const targetChat = await client.getChatById(targetGroupId);
-        const forwardedMessage = await targetChat.sendMessage(`Nueva tarea recibida: \n \n*${message.body}*`);
+        await targetChat.sendMessage(`*${message.body}*`);
         if (media) await targetChat.sendMessage(media);
         console.log(`Mensaje reenviado a ${category}: ${message.body}`);
     }
@@ -112,27 +97,50 @@ client.on('message', async message => {
     if (foundMan) await forwardMessage(groupMantenimientoId, "Mantenimiento");
     if (foundAma) await forwardMessage(groupAmaId, "Ama");
 
+    // Manejo de confirmaciones de tarea
     if (message.hasQuotedMsg) {
         const quotedMessage = await message.getQuotedMessage();
-        if (quotedMessage.body.startsWith("Nueva tarea recibida: \n")) {
-            const taskMessage = quotedMessage.body.replace('Nueva tarea recibida: \n \n', '');
-            const confirmationMessage = `La tarea *${taskMessage}* ha sido completada.`;
-
-            const responseMessage = message.body.toLowerCase();
-            if (confirmationKeywords.some(keyword => responseMessage.includes(keyword))) {
-                await chat.sendMessage(confirmationMessage);
-                await client.getChatById(groupPruebaId).then(groupChat => {
+        if (quotedMessage.body.startsWith("*")) {
+            const taskMessage = quotedMessage.body;
+            if (keywordsConfirm.has(cleanedMessage)) {
+                const confirmationMessage = `La tarea ${taskMessage} ha sido completada.`;
+                await client.getChatById(groupITPruebaId).then(groupChat => {
                     groupChat.sendMessage(confirmationMessage);
                 });
-
                 console.log(`Confirmación recibida en ${chat.name}: ${taskMessage}`);
-            } else {
-                console.log(`Respuesta no válida en ${chat.name}: ${message.body}`);
             }
         }
     }
 });
 
+// Manejo de salida del bot para asegurar que el mensaje de desconexión se envíe
+async function sendDisconnectMessage() {
+    try {
+        const groupITPruebaId = '120363389868056953@g.us';
+        const groupChat = await client.getChatById(groupITPruebaId);
+        await groupChat.sendMessage('El servicio VICEBOT 🤖, está temporalmente desconectado, por favor avise a su equipo de TI');
+        console.log('Mensaje de desconexión enviado.');
+    } catch (err) {
+        console.error('Error al enviar el mensaje de desconexión:', err);
+    }
+}
+
+client.on('disconnected', async () => {
+    console.log('VICEBOT se ha desconectado.');
+    await sendDisconnectMessage();
+});
+
+process.on('SIGINT', async () => {
+    console.log('Cierre detectado (Ctrl + C). Enviando mensaje de desconexión...');
+    await sendDisconnectMessage();
+    process.exit();
+});
+
+process.on('exit', async () => {
+    console.log('Proceso finalizando. Enviando mensaje de desconexión...');
+    await sendDisconnectMessage();
+});
+
 client.initialize();
 
-//Bot con saludo y salida
+//BOT IA 2
