@@ -106,9 +106,18 @@ client.on('message', async message => {
             const responseMessage = message.body.toLowerCase();
             if (confirmationKeywords.some(keyword => responseMessage.includes(keyword))) {
                 await chat.sendMessage(confirmationMessage);
+
+                // Enviar la confirmación también a los otros grupos
                 await client.getChatById(groupITPruebaId).then(groupChat => {
                     groupChat.sendMessage(confirmationMessage);
                 });
+                await client.getChatById(groupMantenimientoId).then(groupChat => {
+                    groupChat.sendMessage(confirmationMessage);
+                });
+                await client.getChatById(groupAmaId).then(groupChat => {
+                    groupChat.sendMessage(confirmationMessage);
+                });
+
                 console.log(`Confirmación recibida en ${chat.name}: ${taskMessage}`);
             } else {
                 console.log(`Respuesta no válida en ${chat.name}: ${message.body}`);
@@ -118,4 +127,4 @@ client.on('message', async message => {
 });
 
 client.initialize();
-//Logica avanzada con palabras de respuesta
+//Bot avanzado con confirmacion en todos los grupos
