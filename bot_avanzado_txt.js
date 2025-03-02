@@ -123,4 +123,4 @@ client.on('message', async message => {
 
 client.initialize();
 
-//bot avanzado con respuesta rapida
+//bot avanzado con respuesta rapida 2
