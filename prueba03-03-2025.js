@@ -86,8 +86,9 @@ client.on('message', async message => {
     async function forwardMessage(targetGroupId, category) {
         try {
             const targetChat = await client.getChatById(targetGroupId);
-            const forwardedMessage = await targetChat.sendMessage(`Nueva tarea recibida: \n \n*${message.body}*`);
+            await targetChat.sendMessage(`Nueva tarea recibida: \n \n*${message.body}*`);
             if (media) await targetChat.sendMessage(media);
+            await chat.sendMessage(`Mensaje enviado a *${category}*`);
             console.log(`Mensaje reenviado a ${category}: ${message.body}`);
         } catch (error) {
             console.error(`Error al reenviar mensaje a ${category}:`, error);
@@ -119,4 +120,4 @@ client.on('message', async message => {
 });
 
 client.initialize();
-//Reenvio de mensajes a todos los grupos
+//Mensaje personalizado
