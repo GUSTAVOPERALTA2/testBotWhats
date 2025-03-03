@@ -1,6 +1,17 @@
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const fs = require('fs');  
+const path = require('path');
+
+// Ruta del directorio de la sesión
+const sessionPath = path.join(__dirname, '.wwebjs_auth', 'session');
+
+// Eliminar el directorio de sesión si existe para evitar errores
+if (fs.existsSync(sessionPath)) {
+    console.log("⚠️ Eliminando sesión anterior para evitar errores...");
+    fs.rmSync(sessionPath, { recursive: true, force: true });
+    console.log("✅ Sesión eliminada correctamente.");
+}
 
 const client = new Client({
     authStrategy: new LocalAuth()
@@ -120,4 +131,6 @@ client.on('message', async message => {
 });
 
 client.initialize();
-//Mensaje personalizado
+
+
+//Quitando sesion dañada
