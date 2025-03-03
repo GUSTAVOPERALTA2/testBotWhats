@@ -10,18 +10,18 @@ const sessionPath = path.join(__dirname, '.wwebjs_auth', 'session');
 // Función para eliminar la sesión de manera segura
 function clearSession() {
     if (fs.existsSync(sessionPath)) {
-        console.log("⚠️ Eliminando sesión para evitar errores...");
+        console.log("Eliminando sesión para evitar errores...");
         try {
             fs.rmSync(sessionPath, { recursive: true, force: true });
-            console.log("✅ Sesión eliminada correctamente.");
+            console.log("Sesión eliminada correctamente.");
         } catch (error) {
-            console.error("❌ Error eliminando la sesión, intentando con un retraso...");
+            console.error("Error eliminando la sesión, intentando con un retraso...");
             setTimeout(() => {
                 try {
                     fs.rmSync(sessionPath, { recursive: true, force: true });
-                    console.log("✅ Sesión eliminada en el segundo intento.");
+                    console.log("Sesión eliminada en el segundo intento.");
                 } catch (finalError) {
-                    console.error("❌ No se pudo eliminar la sesión después de varios intentos:", finalError);
+                    console.error("No se pudo eliminar la sesión después de varios intentos:", finalError);
                 }
             }, 3000); // Espera 3 segundos antes de intentar nuevamente
         }
@@ -64,37 +64,42 @@ function loadKeywords() {
 }
 
 client.on('qr', qr => {
-    console.log('⚡ Escanea este QR con WhatsApp Web para iniciar sesión:');
+    console.log('Escanea este QR con WhatsApp Web para iniciar sesión:');
     qrcode.generate(qr, { small: true });
 });
 
 client.on('ready', async () => {
-    console.log('✅ Bot de WhatsApp conectado y listo.');
+    console.log('Bot de WhatsApp conectado y listo.');
     loadKeywords();
 
     const chats = await client.getChats();
-    console.log(`📌 Chats disponibles: ${chats.length}`);
+    console.log(`Chats disponibles: ${chats.length}`);
 
     const groups = chats.filter(chat => chat.id._serialized.endsWith('@g.us'));
-    console.log(`📌 Grupos disponibles: ${groups.length}`);
+    console.log(`Grupos disponibles: ${groups.length}`);
     groups.forEach(async group => {
-        console.log(`📢 Grupo: ${group.name} - ID: ${group.id._serialized}`);
+        console.log(`Grupo: ${group.name} - ID: ${group.id._serialized}`);
         try {
-            await group.sendMessage("**🤖VICEBOT🤖 EN LINEA**\n\n**BIENVENIDOS**");
+            await group.sendMessage("**VICEBOT EN LINEA**\n\n**BIENVENIDOS**");
         } catch (error) {
-            console.error(`❌ Error al enviar mensaje en el grupo ${group.name}:`, error);
+            console.error(`Error al enviar mensaje en el grupo ${group.name}:`, error);
         }
     });
 });
 
+// Asegurar que el bot siga escuchando mensajes correctamente
+client.on('message', async message => {
+    console.log(`Mensaje recibido: "${message.body}" de ${message.from}`);
+});
+
 client.on('disconnected', async () => {
-    console.log("⚠️ Sesión cerrada. Eliminando sesión y reiniciando bot...");
+    console.log("Sesión cerrada. Eliminando sesión y reiniciando bot...");
     clearSession();
     setTimeout(() => {
-        console.log("🔄 Reiniciando bot...");
+        console.log("Reiniciando bot...");
         exec("node bot_beta.js", (error, stdout, stderr) => {
             if (error) {
-                console.error("❌ Error al reiniciar el bot:", error);
+                console.error("Error al reiniciar el bot:", error);
                 return;
             }
             console.log(stdout);
@@ -105,11 +110,11 @@ client.on('disconnected', async () => {
 });
 
 process.on('SIGINT', () => {
-    console.log("⚠️ Cierre manual detectado. Eliminando sesión antes de salir...");
+    console.log("Cierre manual detectado. Eliminando sesión antes de salir...");
     clearSession();
     process.exit(0);
 });
 
 client.initialize();
 
-//Cierre de sesion
+//Cerrar sesion y reenvio
