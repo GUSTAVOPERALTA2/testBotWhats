@@ -48,8 +48,13 @@ client.on('ready', async () => {
 
     const groups = chats.filter(chat => chat.id._serialized.endsWith('@g.us'));
     console.log(`Grupos disponibles: ${groups.length}`);
-    groups.forEach(group => {
+    groups.forEach(async group => {
         console.log(`Grupo: ${group.name} - ID: ${group.id._serialized}`);
+        try {
+            await group.sendMessage("**🤖VICEBOT🤖 EN LINEA**\n\n**BIENVENIDOS**");
+        } catch (error) {
+            console.error(`Error al enviar mensaje de confirmación en el grupo ${group.name}:`, error);
+        }
     });
 });
 
@@ -114,4 +119,4 @@ client.on('message', async message => {
 });
 
 client.initialize();
-//Busqueda de palabras
+//Reenvio de mensajes a todos los grupos
