@@ -114,4 +114,4 @@ client.on('message', async message => {
 });
 
 client.initialize();
-//Busqueda de imagenes
+//Busqueda de palabras
