@@ -2,6 +2,7 @@ const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const fs = require('fs');  
 const path = require('path');
+const { exec } = require('child_process');
 
 // Ruta del directorio de la sesión
 const sessionPath = path.join(__dirname, '.wwebjs_auth', 'session');
@@ -10,8 +11,20 @@ const sessionPath = path.join(__dirname, '.wwebjs_auth', 'session');
 function clearSession() {
     if (fs.existsSync(sessionPath)) {
         console.log("⚠️ Eliminando sesión para evitar errores...");
-        fs.rmSync(sessionPath, { recursive: true, force: true });
-        console.log("✅ Sesión eliminada correctamente.");
+        try {
+            fs.rmSync(sessionPath, { recursive: true, force: true });
+            console.log("✅ Sesión eliminada correctamente.");
+        } catch (error) {
+            console.error("❌ Error eliminando la sesión, intentando con un retraso...");
+            setTimeout(() => {
+                try {
+                    fs.rmSync(sessionPath, { recursive: true, force: true });
+                    console.log("✅ Sesión eliminada en el segundo intento.");
+                } catch (finalError) {
+                    console.error("❌ No se pudo eliminar la sesión después de varios intentos:", finalError);
+                }
+            }, 3000); // Espera 3 segundos antes de intentar nuevamente
+        }
     }
 }
 
@@ -77,6 +90,17 @@ client.on('ready', async () => {
 client.on('disconnected', async () => {
     console.log("⚠️ Sesión cerrada. Eliminando sesión y reiniciando bot...");
     clearSession();
+    setTimeout(() => {
+        console.log("🔄 Reiniciando bot...");
+        exec("node bot_beta.js", (error, stdout, stderr) => {
+            if (error) {
+                console.error("❌ Error al reiniciar el bot:", error);
+                return;
+            }
+            console.log(stdout);
+            console.error(stderr);
+        });
+    }, 5000); // Espera 5 segundos antes de reiniciar
     process.exit(1);
 });
 
@@ -88,4 +112,4 @@ process.on('SIGINT', () => {
 
 client.initialize();
 
-//Cerrar sesion correctamente
+//Cierre de sesion
