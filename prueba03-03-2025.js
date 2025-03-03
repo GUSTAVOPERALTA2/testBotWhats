@@ -90,6 +90,20 @@ client.on('ready', async () => {
 // Asegurar que el bot siga escuchando mensajes correctamente
 client.on('message', async message => {
     console.log(`Mensaje recibido: "${message.body}" de ${message.from}`);
+
+    // Limpiar el mensaje y dividir en palabras clave
+    const cleanedMessage = message.body.toLowerCase().replace(/[^a-z0-9áéíóúüñ\s]/gi, '').trim();
+    const wordsSet = new Set(cleanedMessage.split(/\s+/));
+    console.log("Palabras detectadas en el mensaje:", wordsSet);
+
+    // Verificar si el mensaje contiene palabras clave
+    const foundIT = [...keywordsIt].some(word => wordsSet.has(word));
+    const foundMan = [...keywordsMan].some(word => wordsSet.has(word));
+    const foundAma = [...keywordsAma].some(word => wordsSet.has(word));
+
+    if (foundIT) console.log("Detectada palabra clave en IT");
+    if (foundMan) console.log("Detectada palabra clave en Mantenimiento");
+    if (foundAma) console.log("Detectada palabra clave en Ama de llaves");
 });
 
 client.on('disconnected', async () => {
@@ -116,5 +130,4 @@ process.on('SIGINT', () => {
 });
 
 client.initialize();
-
 //Cerrar sesion y reenvio
