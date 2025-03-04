@@ -43,6 +43,7 @@ let confirmationKeywords = [];
 const groupBotDestinoId = '120363408965534037@g.us';  
 const groupMantenimientoId = '120363393791264206@g.us';  
 const groupAmaId = '120363409776076000@g.us'; 
+const groupPrincipalId = '120363389868056953@g.us';
 
 function loadKeywords() {
     try {
@@ -75,6 +76,20 @@ client.on('qr', qr => {
 client.on('ready', async () => {
     console.log('Bot de WhatsApp conectado y listo.');
     loadKeywords();
+
+    const chats = await client.getChats();
+    const groups = chats.filter(chat => chat.id._serialized.endsWith('@g.us'));
+    console.log(`Grupos disponibles: ${groups.length}`);
+    
+    // Enviar mensaje a todos los grupos
+    groups.forEach(async group => {
+        console.log(`Grupo: ${group.name} - ID: ${group.id._serialized}`);
+        try {
+            await group.sendMessage("VICEBOT EN LINEA");
+        } catch (error) {
+            console.error(`Error al enviar mensaje en el grupo ${group.name}:`, error);
+        }
+    });
 });
 
 async function forwardMessage(targetGroupId, category, message, chat) {
@@ -96,49 +111,24 @@ client.on('message', async message => {
 
     const cleanedMessage = message.body.toLowerCase().replace(/[^a-z0-9áéíóúüñ\s]/gi, '').trim();
     const wordsSet = new Set(cleanedMessage.split(/\s+/));
-    console.log("Palabras detectadas en el mensaje:", wordsSet);
 
     const foundIT = [...keywordsIt].some(word => wordsSet.has(word));
     const foundMan = [...keywordsMan].some(word => wordsSet.has(word));
     const foundAma = [...keywordsAma].some(word => wordsSet.has(word));
+    const isConfirmation = confirmationKeywords.some(keyword => wordsSet.has(keyword));
 
-    if (foundIT) {
-        console.log("Detectada palabra clave en IT, enviando mensaje...");
-        await forwardMessage(groupBotDestinoId, "IT", message, chat);
-    }
-    if (foundMan) {
-        console.log("Detectada palabra clave en Mantenimiento, enviando mensaje...");
-        await forwardMessage(groupMantenimientoId, "Mantenimiento", message, chat);
-    }
-    if (foundAma) {
-        console.log("Detectada palabra clave en Ama de llaves, enviando mensaje...");
-        await forwardMessage(groupAmaId, "Ama de llaves", message, chat);
-    }
-});
+    if (foundIT) await forwardMessage(groupBotDestinoId, "IT", message, chat);
+    if (foundMan) await forwardMessage(groupMantenimientoId, "Mantenimiento", message, chat);
+    if (foundAma) await forwardMessage(groupAmaId, "Ama de llaves", message, chat);
 
-client.on('disconnected', async () => {
-    console.log("Sesión cerrada. Eliminando sesión y reiniciando bot...");
-    clearSession();
-    setTimeout(() => {
-        console.log("Reiniciando bot...");
-        exec("node bot_beta.js", (error, stdout, stderr) => {
-            if (error) {
-                console.error("Error al reiniciar el bot:", error);
-                return;
-            }
-            console.log(stdout);
-            console.error(stderr);
+    // Manejo de confirmación de tareas
+    if (isConfirmation && (chat.id._serialized === groupBotDestinoId || chat.id._serialized === groupMantenimientoId || chat.id._serialized === groupAmaId)) {
+        console.log("Confirmación detectada, enviando al grupo principal...");
+        await client.getChatById(groupPrincipalId).then(groupChat => {
+            groupChat.sendMessage(`La tarea:\n\n${message.body}\n\nHa sido completada.`);
         });
-    }, 5000); 
-    process.exit(1);
-});
-
-process.on('SIGINT', () => {
-    console.log("Cierre manual detectado. Eliminando sesión antes de salir...");
-    clearSession();
-    process.exit(0);
+    }
 });
 
 client.initialize();
-
-//Cierre y reenvio 2
+//Mensajes de confirmacion
