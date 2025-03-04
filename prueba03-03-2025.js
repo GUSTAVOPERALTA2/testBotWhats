@@ -44,7 +44,6 @@ const groupBotDestinoId = '120363408965534037@g.us';
 const groupMantenimientoId = '120363393791264206@g.us';  
 const groupAmaId = '120363409776076000@g.us'; 
 const groupPrincipalId = '120363389868056953@g.us';
-const groupPruebaId = '120363389868056953@g.us'; // Grupo donde se enviarán las confirmaciones
 
 function loadKeywords() {
     try {
@@ -93,51 +92,6 @@ client.on('ready', async () => {
     });
 });
 
-async function forwardMessage(targetGroupId, category, message, chat) {
-    try {
-        const targetChat = await client.getChatById(targetGroupId);
-        await targetChat.sendMessage(`Nueva tarea recibida en *${category}*:\n\n${message.body}`);
-        console.log(`Mensaje reenviado a ${category}: ${message.body}`);
-        await chat.sendMessage(`Mensaje enviado a *${category}*.`);
-    } catch (error) {
-        console.error(`Error al reenviar mensaje a ${category}:`, error);
-    }
-}
-
-client.on('message', async message => {
-    if (message.body.toLowerCase() === '!cerrarsesion') {
-        console.log("Comando de cierre de sesión recibido, cerrando sesión...");
-        await client.logout();
-        clearSession();
-        console.log("Sesión cerrada correctamente. Escanea el QR nuevamente para iniciar sesión.");
-        return;
-    }
-    
-    console.log(`Mensaje recibido: "${message.body}" de ${message.from}`);
-    const chat = await message.getChat();
-    if (!chat.id._serialized.endsWith('@g.us')) return;
-
-    const cleanedMessage = message.body.toLowerCase().replace(/[^a-z0-9áéíóúüñ\s]/gi, '').trim();
-    const wordsSet = new Set(cleanedMessage.split(/\s+/));
-
-    const foundIT = [...keywordsIt].some(word => wordsSet.has(word));
-    const foundMan = [...keywordsMan].some(word => wordsSet.has(word));
-    const foundAma = [...keywordsAma].some(word => wordsSet.has(word));
-    const isConfirmation = confirmationKeywords.some(keyword => wordsSet.has(keyword));
-
-    if (foundIT) await forwardMessage(groupBotDestinoId, "IT", message, chat);
-    if (foundMan) await forwardMessage(groupMantenimientoId, "Mantenimiento", message, chat);
-    if (foundAma) await forwardMessage(groupAmaId, "Ama de llaves", message, chat);
-
-    // Manejo de confirmación de tareas
-    if (isConfirmation && (chat.id._serialized === groupBotDestinoId || chat.id._serialized === groupMantenimientoId || chat.id._serialized === groupAmaId)) {
-        console.log("Confirmación detectada, enviando al grupo de prueba...");
-        await client.getChatById(groupPruebaId).then(groupChat => {
-            groupChat.sendMessage(`La tarea:\n\n${message.body}\n\nHa sido completada.`);
-        });
-    }
-});
-
 client.initialize();
 
-//REENVIO 2
+//Reinicio
