@@ -108,4 +108,4 @@ client.on('message', async message => {
 client.initialize();
 
 
-//Reinicio bien
+//Reinicio bien 2
