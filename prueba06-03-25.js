@@ -118,13 +118,26 @@ process.on('SIGINT', async () => {
     console.log('Deteniendo el bot de WhatsApp...');
     if (client) {
         try {
-            await client.destroy(); // Cierra la sesión de WhatsApp Web correctamente
+            await client.destroy();
             console.log('Sesión de WhatsApp cerrada correctamente.');
         } catch (error) {
             console.error('Error al cerrar la sesión de WhatsApp:', error);
         }
     }
     process.exit(0);
+});
+
+// Manejo de desconexión si se cierra sesión desde el teléfono
+client.on('disconnected', async (reason) => {
+    console.log(`Bot desconectado: ${reason}`);
+    try {
+        await client.destroy();
+        console.log('Sesión cerrada correctamente tras desconexión.');
+    } catch (error) {
+        console.error('Error al intentar cerrar la sesión tras desconexión:', error);
+    }
+    console.log('Vuelve a iniciar el bot para escanear el código QR.');
+    process.exit(1);
 });
 
 client.initialize();
