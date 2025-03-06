@@ -17,7 +17,8 @@ const client = new Client({
     authStrategy: new RemoteAuth({
         clientId: 'bot-whatsapp', // Identificador de la sesión
         dataPath: './.wwebjs_auth', // Copia de seguridad local (opcional)
-        store: db
+        store: db,
+        backupSyncIntervalMs: 60000 // Establece el tiempo mínimo de sincronización (1 min)
     })
 });
 
