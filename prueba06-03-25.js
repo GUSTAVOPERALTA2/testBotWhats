@@ -11,25 +11,24 @@ let keywordsIt = new Set();
 let keywordsMan = new Set();
 let keywordsAma = new Set();
 let confirmationKeywords = [];
-let keywordsLoaded = false; // Evita recarga innecesaria
 
 function loadKeywords() {
-    if (keywordsLoaded) return; // Si ya están cargadas, no recargar
     try {
         const dataIt = fs.readFileSync('keywords_it.txt', 'utf8');
         keywordsIt = new Set(dataIt.split('\n').map(word => word.trim().toLowerCase()).filter(word => word));
+        console.log('Palabras clave IT cargadas:', [...keywordsIt]);
 
         const dataMan = fs.readFileSync('keywords_man.txt', 'utf8');
         keywordsMan = new Set(dataMan.split('\n').map(word => word.trim().toLowerCase()).filter(word => word));
+        console.log('Palabras clave Man cargadas:', [...keywordsMan]);
 
         const dataAma = fs.readFileSync('keywords_ama.txt', 'utf8');
         keywordsAma = new Set(dataAma.split('\n').map(word => word.trim().toLowerCase()).filter(word => word));
+        console.log('Palabras clave Ama cargadas:', [...keywordsAma]);
 
         const confirmData = fs.readFileSync('keywords_confirm.txt', 'utf8');
         confirmationKeywords = confirmData.split('\n').map(phrase => phrase.trim().toLowerCase()).filter(phrase => phrase);
-
-        console.log('Palabras clave cargadas correctamente.');
-        keywordsLoaded = true; // Marcar como cargadas
+        console.log('Frases de confirmación cargadas:', confirmationKeywords);
     } catch (err) {
         console.error('Error al leer los archivos de palabras clave:', err);
     }
@@ -62,15 +61,6 @@ client.on('disconnected', async (reason) => {
         console.log('Sesión cerrada correctamente tras desconexión.');
     } catch (error) {
         console.error('Error al intentar cerrar la sesión tras desconexión:', error);
-    }
-
-    // Intentar eliminar manualmente la carpeta de sesión si persiste el error
-    const sessionPath = path.join(__dirname, '.wwebjs_auth/session');
-    try {
-        fs.rmdirSync(sessionPath, { recursive: true }); // Eliminar la carpeta completa
-        console.log('Carpeta de sesión eliminada.');
-    } catch (err) {
-        console.error('No se pudo eliminar la carpeta de sesión:', err);
     }
 
     console.log('Vuelve a iniciar el bot para escanear el código QR.');
