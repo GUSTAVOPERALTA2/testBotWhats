@@ -128,5 +128,9 @@ client.on('message', async message => {
 });
 
 client.initialize();
+<<<<<<< HEAD
 /// Codigo base del 03/06, mejora de errores y logica de busqueda
 
+=======
+//Manejo de errores 1
+>>>>>>> 129eb18ed7b3e363d38df2e44481c4dff3871b6b
