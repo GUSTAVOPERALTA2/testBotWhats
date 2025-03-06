@@ -1,7 +1,6 @@
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
-const fs = require('fs');
-const path = require('path');
+const fs = require('fs');  
 
 const client = new Client({
     authStrategy: new LocalAuth()
@@ -29,6 +28,7 @@ function loadKeywords() {
         const confirmData = fs.readFileSync('keywords_confirm.txt', 'utf8');
         confirmationKeywords = confirmData.split('\n').map(phrase => phrase.trim().toLowerCase()).filter(phrase => phrase);
         console.log('Frases de confirmación cargadas:', confirmationKeywords);
+        
     } catch (err) {
         console.error('Error al leer los archivos de palabras clave:', err);
     }
