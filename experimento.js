@@ -1,52 +1,33 @@
-const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
-const fs = require('fs');  
+const { Client, RemoteAuth } = require('whatsapp-web.js');
+const { initializeApp, cert } = require('firebase-admin/app');
+const { getFirestore } = require('firebase-admin/firestore');
+const fs = require('fs');
 
-const client = new Client({
-    authStrategy: new LocalAuth()
+// Cargar credenciales de Firebase
+const serviceAccount = require('./firebase_credentials.json');
+
+// Inicializar Firebase
+initializeApp({
+    credential: cert(serviceAccount)
 });
+const db = getFirestore();
 
-let keywordsIt = new Set();
-let keywordsMan = new Set();
-let keywordsAma = new Set();
-let confirmationKeywords = [];
-
-function loadKeywords() {
-    const loadFile = (filename) => {
-        try {
-            if (!fs.existsSync(filename)) {
-                console.warn(`Advertencia: El archivo ${filename} no existe.`);
-                return [];
-            }
-            return fs.readFileSync(filename, 'utf8')
-                .split('\n')
-                .map(word => word.trim().toLowerCase())
-                .filter(word => word);
-        } catch (err) {
-            console.error(`Error al leer ${filename}:`, err);
-            return [];
-        }
-    };
-
-    keywordsIt = new Set(loadFile('keywords_it.txt'));
-    keywordsMan = new Set(loadFile('keywords_man.txt'));
-    keywordsAma = new Set(loadFile('keywords_ama.txt'));
-    confirmationKeywords = loadFile('keywords_confirm.txt');
-
-    console.log('Palabras clave IT cargadas:', [...keywordsIt]);
-    console.log('Palabras clave Man cargadas:', [...keywordsMan]);
-    console.log('Palabras clave Ama cargadas:', [...keywordsAma]);
-    console.log('Frases de confirmación cargadas:', confirmationKeywords);
-}
+// Configurar el cliente de WhatsApp con RemoteAuth
+const client = new Client({
+    authStrategy: new RemoteAuth({
+        clientId: 'bot-whatsapp', // Identificador de la sesión
+        dataPath: './.wwebjs_auth', // Copia de seguridad local (opcional)
+        store: db
+    })
+});
 
 client.on('qr', qr => {
     console.log('Escanea este QR con WhatsApp Web:');
-    qrcode.generate(qr, { small: true });
+    require('qrcode-terminal').generate(qr, { small: true });
 });
 
 client.on('ready', async () => {
     console.log('Bot de WhatsApp conectado y listo.');
-    loadKeywords();
 
     const chats = await client.getChats();
     console.log(`Chats disponibles: ${chats.length}`);
@@ -128,5 +109,4 @@ client.on('message', async message => {
 });
 
 client.initialize();
-/// Codigo base del 03/06, mejora de errores y logica de busqueda
-
+//RemoteAuth
