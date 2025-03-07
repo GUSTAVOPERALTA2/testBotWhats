@@ -12,7 +12,7 @@ initializeApp({
 });
 const db = getFirestore();
 
-// Función para cargar la sesión antes de iniciar Puppeteer
+// Función para cargar cookies antes de abrir WhatsApp Web
 async function loadSession(client) {
     try {
         const doc = await db.collection('wwebjs_auth').doc('vicebot-test').get();
@@ -27,16 +27,18 @@ async function loadSession(client) {
             return;
         }
 
-        console.log("[Auth] Aplicando cookies en Puppeteer antes de la autenticación...");
+        console.log("[Auth] Aplicando TODAS las cookies en Puppeteer antes de la autenticación...");
         const page = await client.pupBrowser.newPage();
         await page.setCookie(...cookies);
+        await page.goto('https://web.whatsapp.com', { waitUntil: 'networkidle0' });
+
         console.log("[Auth] Sesión restaurada correctamente desde Firestore.");
     } catch (error) {
         console.error("[Auth] Error al cargar la sesión:", error);
     }
 }
 
-// Función para guardar la sesión después de autenticarse
+// Función para guardar TODAS las cookies después de autenticarse
 async function saveSession(client) {
     try {
         const cookies = await client.pupPage.cookies();
@@ -45,12 +47,15 @@ async function saveSession(client) {
             return;
         }
 
+        console.log("[Auth] Guardando TODAS las cookies en Firestore...");
+        console.log(JSON.stringify(cookies, null, 2));
+
         await db.collection('wwebjs_auth').doc('vicebot-test').set({
             cookies,
             updatedAt: Timestamp.now()
         }, { merge: true });
 
-        console.log("[Auth] Sesión guardada correctamente en Firestore.");
+        console.log("[Auth] TODAS las cookies de la sesión han sido guardadas en Firestore.");
     } catch (error) {
         console.error("[Auth] Error al guardar la sesión:", error);
     }
@@ -59,12 +64,12 @@ async function saveSession(client) {
 // Configurar el cliente de WhatsApp con LocalAuth
 const client = new Client({
     authStrategy: new LocalAuth(),
-    puppeteer: { headless: true }
+    puppeteer: { headless: false } // Cambia a "false" para depuración
 });
 
-// Antes de inicializar el bot, intentamos cargar la sesión desde Firestore
+// Antes de inicializar el bot, intentamos cargar TODAS las cookies desde Firestore
 client.on('browser_page', async () => {
-    console.log("[Auth] Intentando restaurar sesión desde Firestore antes de iniciar WhatsApp...");
+    console.log("[Auth] Intentando restaurar TODAS las cookies desde Firestore antes de iniciar WhatsApp...");
     await loadSession(client);
 });
 
@@ -75,7 +80,7 @@ client.on('qr', qr => {
 
 client.on('ready', async () => {
     console.log('[Auth] Bot de WhatsApp conectado y autenticado correctamente.');
-    // Guardar la sesión en Firestore después de la autenticación
+    // Guardar TODAS las cookies en Firestore después de la autenticación
     await saveSession(client);
 });
 
@@ -88,4 +93,4 @@ client.on('auth_failure', async message => {
 });
 
 client.initialize();
-//Sesion
+//Auth nuevo
