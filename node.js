@@ -19,6 +19,15 @@ const SESSION_DIR = path.join(__dirname, 'chrome_session');
 const IGNORED_FILES = ['SingletonCookie', 'SingletonLock'];
 
 /**
+ * Función para sanitizar el nombre de un archivo, reemplazando caracteres problemáticos.
+ * @param {string} fileName - Nombre original del archivo.
+ * @returns {string} - Nombre sanitizado.
+ */
+function sanitizeFileName(fileName) {
+  return fileName.replace(/[.#$/\[\]]/g, '_');
+}
+
+/**
  * Registra un mensaje con fecha y hora.
  * @param {string} level - Nivel del log (log, warn, error).
  * @param {string} message - Mensaje a registrar.
@@ -32,22 +41,30 @@ function log(level, message, error) {
   }
 }
 
-// Función para guardar la sesión del navegador en Firestore
+/**
+ * Guarda la sesión del navegador en Firestore, almacenando cada archivo en la subcolección "session_files".
+ */
 async function saveSessionData() {
   try {
     const sessionFiles = fs.readdirSync(SESSION_DIR)
       .filter(file => !IGNORED_FILES.includes(file) && fs.statSync(path.join(SESSION_DIR, file)).isFile());
-    const sessionData = {};
 
+    const sessionDocRef = db.collection('wwebjs_auth').doc('vicebot-test');
+
+    // Actualizar el campo updatedAt en el documento principal
+    await sessionDocRef.set({ updatedAt: Timestamp.now() }, { merge: true });
+
+    // Guardar cada archivo en la subcolección "session_files"
     for (const file of sessionFiles) {
+      const sanitizedFileName = sanitizeFileName(file);
       const filePath = path.join(SESSION_DIR, file);
-      sessionData[file] = fs.readFileSync(filePath, 'base64');
+      const content = fs.readFileSync(filePath, 'base64');
+      await sessionDocRef.collection('session_files').doc(sanitizedFileName).set({
+        fileName: file,       // Nombre original del archivo
+        content,              // Contenido en base64
+        updatedAt: Timestamp.now()
+      });
     }
-
-    await db.collection('wwebjs_auth').doc('vicebot-test').set({
-      sessionData,
-      updatedAt: Timestamp.now()
-    }, { merge: true });
 
     log('log', 'Sesión completa del navegador guardada en Firestore.');
   } catch (error) {
@@ -55,18 +72,17 @@ async function saveSessionData() {
   }
 }
 
-// Función para restaurar la sesión del navegador desde Firestore
+/**
+ * Restaura la sesión del navegador desde Firestore leyendo los documentos de la subcolección "session_files".
+ * @returns {Promise<boolean>} - true si se restauró la sesión; false en caso contrario.
+ */
 async function loadSessionData() {
   try {
-    const doc = await db.collection('wwebjs_auth').doc('vicebot-test').get();
-    if (!doc.exists) {
-      log('warn', 'No se encontró sesión en Firestore.');
-      return false;
-    }
+    const sessionDocRef = db.collection('wwebjs_auth').doc('vicebot-test');
+    const sessionFilesSnapshot = await sessionDocRef.collection('session_files').get();
 
-    const { sessionData } = doc.data();
-    if (!sessionData) {
-      log('warn', 'No hay datos de sesión en Firestore.');
+    if (sessionFilesSnapshot.empty) {
+      log('warn', 'No se encontró sesión en Firestore.');
       return false;
     }
 
@@ -74,10 +90,13 @@ async function loadSessionData() {
       fs.mkdirSync(SESSION_DIR, { recursive: true });
     }
 
-    for (const [file, content] of Object.entries(sessionData)) {
-      const filePath = path.join(SESSION_DIR, file);
-      fs.writeFileSync(filePath, Buffer.from(content, 'base64'));
-    }
+    sessionFilesSnapshot.forEach(doc => {
+      const data = doc.data();
+      if (data && data.fileName && data.content) {
+        const filePath = path.join(SESSION_DIR, data.fileName);
+        fs.writeFileSync(filePath, Buffer.from(data.content, 'base64'));
+      }
+    });
 
     log('log', 'Sesión del navegador restaurada desde Firestore.');
     return true;
@@ -87,10 +106,22 @@ async function loadSessionData() {
   }
 }
 
-// Función para eliminar sesión inválida de Firestore
+/**
+ * Elimina la sesión inválida de Firestore borrando el documento principal y todos los documentos de la subcolección "session_files".
+ */
 async function clearInvalidSession() {
   try {
-    await db.collection('wwebjs_auth').doc('vicebot-test').delete();
+    const sessionDocRef = db.collection('wwebjs_auth').doc('vicebot-test');
+    // Borrar documentos de la subcolección "session_files"
+    const sessionFilesSnapshot = await sessionDocRef.collection('session_files').get();
+    const batch = db.batch();
+    sessionFilesSnapshot.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+    await batch.commit();
+
+    // Borrar el documento principal (opcional)
+    await sessionDocRef.delete();
     log('log', 'Sesión inválida eliminada de Firestore.');
   } catch (error) {
     log('error', 'Error al eliminar la sesión inválida:', error);
@@ -133,12 +164,14 @@ function restartBot(clearSession = true) {
   }
 }
 
-// Función principal para iniciar el bot
+/**
+ * Función principal para iniciar el bot.
+ */
 async function startBot() {
   try {
     const sessionLoaded = await loadSessionData();
     if (!sessionLoaded) {
-      log('warn', 'No se pudo restaurar sesión, iniciando sin sesión previa.');
+      log('warn', 'No se pudo restaurar la sesión, iniciando sin sesión previa.');
     }
 
     const client = new Client({
@@ -203,7 +236,7 @@ process.on('unhandledRejection', (reason) => {
   restartBot();
 });
 
-// Manejo de la señal SIGINT (Ctrl+C) para reinicio automático sin perder la sesión
+// Manejo de la señal SIGINT (Ctrl+C) para reinicio automático sin limpiar la sesión
 process.on('SIGINT', () => {
   log('log', 'Recibida señal SIGINT. Reiniciando el bot de forma automática sin limpiar la sesión...');
   restartBot(false);
@@ -212,5 +245,4 @@ process.on('SIGINT', () => {
 // Iniciar el bot
 startBot();
 
-
-//Nuevo codigo
+//codigo bonito
