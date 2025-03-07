@@ -15,7 +15,7 @@ const db = getFirestore();
 // Implementación personalizada de RemoteAuthStore
 class FirestoreSessionStore {
     constructor(db) {
-        this.collection = db.collection('wwebjs_auth'); // Nombre de la colección en Firestore
+        this.collection = db.collection('wwebjs_auth');
     }
 
     async sessionExists({ session }) {
@@ -26,13 +26,13 @@ class FirestoreSessionStore {
     async saveSession({ session, data }) {
         if (!data) {
             console.warn(`Advertencia: Datos de sesión indefinidos para "${session}". Se almacenará un objeto vacío.`);
-            data = {}; // Evitar que Firestore reciba undefined
+            data = {};
         }
 
         await this.collection.doc(session).set({
             data,
             updatedAt: Timestamp.now(),
-        }, { merge: true }); // Merge evita sobreescribir otros campos
+        }, { merge: true });
     }
 
     async removeSession({ session }) {
@@ -52,12 +52,46 @@ class FirestoreSessionStore {
 // Instancia de almacenamiento en Firestore
 const store = new FirestoreSessionStore(db);
 
+// Variables de palabras clave
+let keywordsIt = new Set();
+let keywordsMan = new Set();
+let keywordsAma = new Set();
+let confirmationKeywords = [];
+let keywordsLoaded = false;
+
+// Función para cargar palabras clave
+function loadKeywords() {
+    const loadFile = (filename) => {
+        try {
+            if (!fs.existsSync(filename)) {
+                console.warn(`Advertencia: El archivo ${filename} no existe.`);
+                return [];
+            }
+            return fs.readFileSync(filename, 'utf8')
+                .split('\n')
+                .map(word => word.trim().toLowerCase())
+                .filter(word => word);
+        } catch (err) {
+            console.error(`Error al leer ${filename}:`, err);
+            return [];
+        }
+    };
+
+    keywordsIt = new Set(loadFile('keywords_it.txt'));
+    keywordsMan = new Set(loadFile('keywords_man.txt'));
+    keywordsAma = new Set(loadFile('keywords_ama.txt'));
+    confirmationKeywords = loadFile('keywords_confirm.txt');
+    
+    keywordsLoaded = true;
+    console.log('Palabras clave cargadas.');
+}
+
 // Configurar el cliente de WhatsApp con RemoteAuth
 const client = new Client({
     authStrategy: new RemoteAuth({
-        clientId: 'vicebot', // Identificador de la sesión personalizado
-        store, // Se usa el almacenamiento personalizado en Firestore
-        backupSyncIntervalMs: 60000 // Sincroniza la sesión cada 60 segundos
+        clientId: 'vicebot',
+        store,
+        backupSyncIntervalMs: 60000
     })
 });
 
@@ -68,6 +102,7 @@ client.on('qr', qr => {
 
 client.on('ready', async () => {
     console.log('Bot de WhatsApp conectado y listo.');
+    loadKeywords();
 
     const chats = await client.getChats();
     console.log(`Chats disponibles: ${chats.length}`);
@@ -80,6 +115,11 @@ client.on('ready', async () => {
 });
 
 client.on('message', async message => {
+    if (!keywordsLoaded) {
+        console.warn('Palabras clave aún no están cargadas. Mensaje ignorado.');
+        return;
+    }
+
     console.log(`Mensaje recibido: "${message.body}"`);
 
     const groupBotDestinoId = '120363408965534037@g.us';  
@@ -128,26 +168,6 @@ client.on('message', async message => {
     if (foundIT) await forwardMessage(groupBotDestinoId, "IT");
     if (foundMan) await forwardMessage(groupMantenimientoId, "Mantenimiento");
     if (foundAma) await forwardMessage(groupAmaId, "Ama");
-
-    if (message.hasQuotedMsg) {
-        const quotedMessage = await message.getQuotedMessage();
-        if (quotedMessage.body.startsWith("Nueva tarea recibida: \n")) {
-            const taskMessage = quotedMessage.body.replace('Nueva tarea recibida: \n\n', '');
-            const confirmationMessage = `La tarea: \n ${taskMessage} \n está *COMPLETADA*.`;
-
-            const responseMessage = message.body.toLowerCase();
-            if (confirmationKeywords.some(keyword => responseMessage.includes(keyword))) {
-                await chat.sendMessage(confirmationMessage);
-                const pruebaChat = await getChatSafe(groupPruebaId);
-                if (pruebaChat) await pruebaChat.sendMessage(confirmationMessage);
-                console.log(`Confirmación recibida en ${chat.name}: ${taskMessage}`);
-            } else {
-                console.log(`Respuesta no válida en ${chat.name}: ${message.body}`);
-            }
-        }
-    }
 });
 
 client.initialize();
-
-//Auth1
