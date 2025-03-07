@@ -43,19 +43,19 @@ async function saveSession(client) {
     try {
         const page = client.pupPage;
         
-        // Obtener TODAS las cookies de WhatsApp Web
-        const cookies = await page.cookies("https://web.whatsapp.com");
+        // Obtener TODAS las cookies de todo el navegador
+        const cookies = await page._client().send('Network.getAllCookies');
         
-        if (cookies.length === 0) {
+        if (cookies.cookies.length === 0) {
             console.warn("[Auth] Advertencia: No hay cookies para guardar.");
             return;
         }
 
         console.log("[Auth] Guardando TODAS las cookies en Firestore...");
-        console.log(JSON.stringify(cookies, null, 2));
+        console.log(JSON.stringify(cookies.cookies, null, 2));
 
         await db.collection('wwebjs_auth').doc('vicebot-test').set({
-            cookies,
+            cookies: cookies.cookies,
             updatedAt: Timestamp.now()
         }, { merge: true });
 
@@ -96,5 +96,5 @@ client.on('auth_failure', async message => {
     console.error(`[Auth] Error de autenticación: ${message}`);
 });
 
-client.initialize(); 
-//111
+client.initialize();
+///""""
