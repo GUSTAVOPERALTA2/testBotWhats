@@ -82,6 +82,12 @@ async function clearInvalidSession() {
     }
 }
 
+// Función para reiniciar Puppeteer en caso de error crítico
+async function restartBot() {
+    console.warn("[Auth] Reiniciando bot debido a un error crítico...");
+    process.exit(1);
+}
+
 // Restaurar sesión antes de iniciar Puppeteer
 loadSessionData().then(async (sessionLoaded) => {
     if (!sessionLoaded) {
@@ -121,12 +127,16 @@ loadSessionData().then(async (sessionLoaded) => {
     client.on('error', async error => {
         console.error("[Auth] Error detectado en Puppeteer:", error);
         if (error.message.includes("Execution context was destroyed")) {
-            console.warn("[Auth] Error crítico, recargando sesión...");
+            console.warn("[Auth] Error crítico, reiniciando bot...");
             await clearInvalidSession();
-            process.exit(1);
+            restartBot();
         }
     });
 
-    client.initialize();
+    client.initialize().catch(async (error) => {
+        console.error("[Auth] Error en la inicialización del bot:", error);
+        await clearInvalidSession();
+        restartBot();
+    });
 });
-//Test11
+//Error de navegador
