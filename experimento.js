@@ -12,7 +12,31 @@ initializeApp({
 });
 const db = getFirestore();
 
-// Funciones para manejar la sesión manualmente
+// Función para cargar la sesión antes de iniciar Puppeteer
+async function loadSession(client) {
+    try {
+        const doc = await db.collection('wwebjs_auth').doc('vicebot-test').get();
+        if (!doc.exists) {
+            console.warn("[Auth] No se encontró sesión en Firestore.");
+            return;
+        }
+
+        const { cookies } = doc.data();
+        if (!cookies || cookies.length === 0) {
+            console.warn("[Auth] No hay cookies guardadas en Firestore.");
+            return;
+        }
+
+        console.log("[Auth] Aplicando cookies en Puppeteer antes de la autenticación...");
+        const page = await client.pupBrowser.newPage();
+        await page.setCookie(...cookies);
+        console.log("[Auth] Sesión restaurada correctamente desde Firestore.");
+    } catch (error) {
+        console.error("[Auth] Error al cargar la sesión:", error);
+    }
+}
+
+// Función para guardar la sesión después de autenticarse
 async function saveSession(client) {
     try {
         const cookies = await client.pupPage.cookies();
@@ -32,31 +56,16 @@ async function saveSession(client) {
     }
 }
 
-async function loadSession(client) {
-    try {
-        const doc = await db.collection('wwebjs_auth').doc('vicebot-test').get();
-        if (!doc.exists) {
-            console.warn("[Auth] No se encontró sesión en Firestore.");
-            return;
-        }
-
-        const { cookies } = doc.data();
-        if (cookies.length === 0) {
-            console.warn("[Auth] No hay cookies guardadas en Firestore.");
-            return;
-        }
-
-        await client.pupPage.setCookie(...cookies);
-        console.log("[Auth] Sesión restaurada correctamente desde Firestore.");
-    } catch (error) {
-        console.error("[Auth] Error al cargar la sesión:", error);
-    }
-}
-
 // Configurar el cliente de WhatsApp con LocalAuth
 const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: { headless: true }
+});
+
+// Antes de inicializar el bot, intentamos cargar la sesión desde Firestore
+client.on('browser_page', async () => {
+    console.log("[Auth] Intentando restaurar sesión desde Firestore antes de iniciar WhatsApp...");
+    await loadSession(client);
 });
 
 client.on('qr', qr => {
@@ -79,10 +88,4 @@ client.on('auth_failure', async message => {
 });
 
 client.initialize();
-
-// Cargar la sesión antes de que WhatsApp inicie
-client.on('browser_page', async () => {
-    console.log("[Auth] Intentando restaurar sesión desde Firestore...");
-    await loadSession(client);
-});
-//ya nose 2
+//Sesion
