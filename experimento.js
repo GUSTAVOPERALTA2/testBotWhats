@@ -46,13 +46,13 @@ async function loadSessionData() {
         const doc = await db.collection('wwebjs_auth').doc('vicebot-test').get();
         if (!doc.exists) {
             console.warn("[Auth] No se encontró sesión en Firestore.");
-            return;
+            return false;
         }
 
         const { sessionData } = doc.data();
         if (!sessionData) {
             console.warn("[Auth] No hay datos de sesión en Firestore.");
-            return;
+            return false;
         }
 
         if (!fs.existsSync(SESSION_DIR)) {
@@ -65,8 +65,10 @@ async function loadSessionData() {
         }
 
         console.log("[Auth] Sesión del navegador restaurada desde Firestore.");
+        return true;
     } catch (error) {
         console.error("[Auth] Error al restaurar la sesión:", error);
+        return false;
     }
 }
 
@@ -81,7 +83,11 @@ async function clearInvalidSession() {
 }
 
 // Restaurar sesión antes de iniciar Puppeteer
-loadSessionData().then(() => {
+loadSessionData().then(async (sessionLoaded) => {
+    if (!sessionLoaded) {
+        console.warn("[Auth] No se pudo restaurar sesión, iniciando sin sesión previa.");
+    }
+
     const client = new Client({
         puppeteer: {
             headless: false, // Permite ver el navegador
@@ -112,6 +118,15 @@ loadSessionData().then(() => {
         await clearInvalidSession();
     });
 
+    client.on('error', async error => {
+        console.error("[Auth] Error detectado en Puppeteer:", error);
+        if (error.message.includes("Execution context was destroyed")) {
+            console.warn("[Auth] Error crítico, recargando sesión...");
+            await clearInvalidSession();
+            process.exit(1);
+        }
+    });
+
     client.initialize();
 });
-//Test 10
+//Test11
