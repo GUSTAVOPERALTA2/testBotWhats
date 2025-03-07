@@ -97,10 +97,28 @@ async function clearInvalidSession() {
   }
 }
 
-// Función para reiniciar automáticamente el bot en caso de error crítico
-function restartBot() {
-  log('warn', 'Reiniciando bot debido a un error crítico...');
-  clearInvalidSession().finally(() => {
+/**
+ * Reinicia el bot.
+ * @param {boolean} clearSession - Indica si se debe limpiar la sesión antes de reiniciar.
+ */
+function restartBot(clearSession = true) {
+  if (clearSession) {
+    log('warn', 'Reiniciando bot debido a un error crítico...');
+    clearInvalidSession().finally(() => {
+      setTimeout(() => {
+        log('warn', 'Reiniciando proceso...');
+        exec(`node ${__filename}`, (error, stdout, stderr) => {
+          if (error) {
+            log('error', 'Error al reiniciar el bot:', error);
+          }
+          if (stdout) console.log(stdout);
+          if (stderr) console.error(stderr);
+        });
+        process.exit(1);
+      }, 5000);
+    });
+  } else {
+    log('warn', 'Reiniciando bot manualmente sin limpiar la sesión...');
     setTimeout(() => {
       log('warn', 'Reiniciando proceso...');
       exec(`node ${__filename}`, (error, stdout, stderr) => {
@@ -110,9 +128,9 @@ function restartBot() {
         if (stdout) console.log(stdout);
         if (stderr) console.error(stderr);
       });
-      process.exit(1);
+      process.exit(0);
     }, 5000);
-  });
+  }
 }
 
 // Función principal para iniciar el bot
@@ -185,8 +203,14 @@ process.on('unhandledRejection', (reason) => {
   restartBot();
 });
 
+// Manejo de la señal SIGINT (Ctrl+C) para reinicio automático sin perder la sesión
+process.on('SIGINT', () => {
+  log('log', 'Recibida señal SIGINT. Reiniciando el bot de forma automática sin limpiar la sesión...');
+  restartBot(false);
+});
+
 // Iniciar el bot
 startBot();
 
 
-//Mini
+//Nuevo codigo
