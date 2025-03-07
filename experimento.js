@@ -4,6 +4,7 @@ const { getFirestore, Timestamp } = require('firebase-admin/firestore');
 const fs = require('fs');
 const path = require('path');
 const { exec } = require('child_process');
+const qrcode = require('qrcode-terminal');
 
 // Cargar credenciales de Firebase
 const serviceAccount = require('./firebase_credentials.json');
@@ -83,23 +84,6 @@ async function clearInvalidSession() {
     }
 }
 
-// Función para reiniciar automáticamente el bot en caso de error crítico
-async function restartBot() {
-    console.warn("[Auth] Reiniciando bot debido a un error crítico...");
-    await clearInvalidSession();
-    setTimeout(() => {
-        console.warn("[Auth] Reiniciando proceso...");
-        exec("node " + __filename, (error, stdout, stderr) => {
-            if (error) {
-                console.error("[Auth] Error al reiniciar el bot:", error);
-            }
-            console.log(stdout);
-            console.error(stderr);
-        });
-        process.exit(1);
-    }, 5000);
-}
-
 // Restaurar sesión antes de iniciar Puppeteer
 loadSessionData().then(async (sessionLoaded) => {
     if (!sessionLoaded) {
@@ -108,15 +92,15 @@ loadSessionData().then(async (sessionLoaded) => {
 
     const client = new Client({
         puppeteer: {
-            headless: false, // Permite ver el navegador
+            headless: true, // Ejecuta sin interfaz gráfica
             userDataDir: SESSION_DIR, // Usa el perfil persistente
-            args: ['--no-sandbox', '--disable-setuid-sandbox']
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage']
         }
     });
 
-    client.on('qr', async () => {
-        console.warn("[Auth] Se ha solicitado un nuevo QR, eliminando sesión anterior en Firestore...");
-        await clearInvalidSession();
+    client.on('qr', qr => {
+        console.log("[Auth] Escanea este QR para iniciar sesión:");
+        qrcode.generate(qr, { small: true }); // Genera el QR en la terminal
     });
 
     client.on('ready', async () => {
@@ -144,17 +128,10 @@ loadSessionData().then(async (sessionLoaded) => {
 
     client.on('error', async error => {
         console.error("[Auth] Error detectado en Puppeteer:", error);
-        if (error.message.includes("Execution context was destroyed")) {
-            console.warn("[Auth] Error crítico, reiniciando bot...");
-            restartBot();
-        }
     });
 
-    client.initialize().catch(async (error) => {
-        console.error("[Auth] Error en la inicialización del bot:", error);
-        restartBot();
-    });
+    client.initialize();
 });
 
 
-//Error nuevo 2
+//Manejo de errores prueba final
