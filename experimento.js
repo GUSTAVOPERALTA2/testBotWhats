@@ -15,11 +15,13 @@ const db = getFirestore();
 
 // Ruta donde se guardará el perfil de navegación
 const SESSION_DIR = path.join(__dirname, 'chrome_session');
+const IGNORED_FILES = ['SingletonCookie', 'SingletonLock'];
 
 // Función para guardar la sesión del navegador en Firestore
 async function saveSessionData() {
     try {
-        const sessionFiles = fs.readdirSync(SESSION_DIR).filter(file => fs.statSync(path.join(SESSION_DIR, file)).isFile());
+        const sessionFiles = fs.readdirSync(SESSION_DIR)
+            .filter(file => !IGNORED_FILES.includes(file) && fs.statSync(path.join(SESSION_DIR, file)).isFile());
         const sessionData = {};
 
         for (const file of sessionFiles) {
@@ -97,4 +99,4 @@ loadSessionData().then(() => {
 
     client.initialize();
 });
-//test 3
+//Test 4
