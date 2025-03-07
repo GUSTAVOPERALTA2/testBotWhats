@@ -11,11 +11,34 @@ initializeApp({
 });
 const db = getFirestore();
 
-// Configuración del cliente de WhatsApp con RemoteAuth y Firestore
+// Implementar un store de Firestore manualmente
+class FirestoreStore {
+    constructor(db, collectionName = 'wwebjs_sessions') {
+        this.collection = db.collection(collectionName);
+    }
+
+    async get(key) {
+        const doc = await this.collection.doc(key).get();
+        return doc.exists ? doc.data() : null;
+    }
+
+    async set(key, value) {
+        await this.collection.doc(key).set(value, { merge: true });
+    }
+
+    async remove(key) {
+        await this.collection.doc(key).delete();
+    }
+}
+
+// Crear una instancia del FirestoreStore
+const store = new FirestoreStore(db);
+
+// Configuración del cliente de WhatsApp con RemoteAuth y FirestoreStore
 const client = new Client({
     authStrategy: new RemoteAuth({
         clientId: 'vicebot-test', // Identificador único para la sesión
-        firestore: db, // Firestore como almacenamiento de sesión
+        store: store, // Usar FirestoreStore como almacenamiento de sesión
         backupSyncIntervalMs: 60000, // Guardar la sesión cada 1 minuto
     }),
     puppeteer: {
@@ -52,4 +75,4 @@ client.on('error', (error) => {
 // Iniciar el cliente
 client.initialize();
 
-//Sin qr
+//firebase
