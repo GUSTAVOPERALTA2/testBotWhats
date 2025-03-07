@@ -29,6 +29,8 @@ class FirestoreSessionStore {
             data = {};
         }
 
+        console.log(`Guardando sesión en Firestore para "${session}":`, JSON.stringify(data, null, 2));
+
         await this.collection.doc(session).set({
             data,
             updatedAt: Timestamp.now(),
@@ -91,7 +93,8 @@ const client = new Client({
     authStrategy: new RemoteAuth({
         clientId: 'vicebot',
         store,
-        backupSyncIntervalMs: 60000
+        backupSyncIntervalMs: 60000,
+        syncFullHistory: true
     })
 });
 
@@ -171,3 +174,5 @@ client.on('message', async message => {
 });
 
 client.initialize();
+
+//RemoteAuth nuevo
