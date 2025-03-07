@@ -126,10 +126,15 @@ loadSessionData().then(async (sessionLoaded) => {
 
     client.on('disconnected', async reason => {
         console.warn(`[Auth] El cliente se desconectó: ${reason}`);
-        if (reason === 'NAVIGATION') {
-            console.warn("[Auth] Sesión posiblemente cerrada en el móvil, eliminando de Firestore...");
+        if (reason === 'LOGOUT') {
+            console.warn("[Auth] Se detectó un cierre de sesión. Eliminando y esperando reconexión...");
             await clearInvalidSession();
         }
+    });
+
+    client.on('authenticated', async () => {
+        console.log("[Auth] Autenticación exitosa. Guardando sesión nuevamente...");
+        await saveSessionData();
     });
 
     client.on('auth_failure', async message => {
@@ -152,4 +157,4 @@ loadSessionData().then(async (sessionLoaded) => {
 });
 
 
-//Test error nuevo
+//Error nuevo 2
