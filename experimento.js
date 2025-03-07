@@ -97,4 +97,4 @@ loadSessionData().then(() => {
 
     client.initialize();
 });
-//Nueva estrategia 3
+//test 3
