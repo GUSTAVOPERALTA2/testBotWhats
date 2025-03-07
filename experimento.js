@@ -126,4 +126,4 @@ client.on('auth_failure', async message => {
 });
 
 client.initialize();
-//AUTH BUENA
+//Auth bueno
