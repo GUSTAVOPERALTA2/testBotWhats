@@ -110,7 +110,7 @@ loadSessionData().then(async (sessionLoaded) => {
         puppeteer: {
             headless: false, // Ejecuta con interfaz gráfica
             userDataDir: SESSION_DIR, // Usa el perfil persistente
-            args: ['--no-sandbox', '--disable-setuid-sandbox']
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage']
         }
     });
 
@@ -145,15 +145,16 @@ loadSessionData().then(async (sessionLoaded) => {
     client.on('error', async error => {
         console.error("[Auth] Error detectado en Puppeteer:", error);
         if (error.message.includes("Execution context was destroyed")) {
-            console.warn("[Auth] Error crítico, reiniciando bot...");
-            restartBot();
+            console.warn("[Auth] Error crítico, esperando antes de reiniciar...");
+            setTimeout(() => restartBot(), 10000); // Espera 10 segundos antes de reiniciar
         }
     });
 
     client.initialize().catch(async (error) => {
         console.error("[Auth] Error en la inicialización del bot:", error);
-        restartBot();
+        setTimeout(() => restartBot(), 10000); // Espera 10 segundos antes de reiniciar
     });
 });
 
-//Solucion error 3
+
+//Solucion
