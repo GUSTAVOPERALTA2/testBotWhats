@@ -41,7 +41,11 @@ async function loadSession(client) {
 // Función para guardar TODAS las cookies después de autenticarse
 async function saveSession(client) {
     try {
-        const cookies = await client.pupPage.cookies();
+        const page = client.pupPage;
+        
+        // Obtener TODAS las cookies de WhatsApp Web
+        const cookies = await page.cookies("https://web.whatsapp.com");
+        
         if (cookies.length === 0) {
             console.warn("[Auth] Advertencia: No hay cookies para guardar.");
             return;
@@ -92,5 +96,5 @@ client.on('auth_failure', async message => {
     console.error(`[Auth] Error de autenticación: ${message}`);
 });
 
-client.initialize();
-//Auth nuevo
+client.initialize(); 
+//111
