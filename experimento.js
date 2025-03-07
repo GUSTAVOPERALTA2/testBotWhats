@@ -102,11 +102,11 @@ client.on('ready', async () => {
         console.warn('[Auth] No se encontró sesión en Firestore, guardando manualmente.');
 
         try {
-            // Extraer la sesión completa del cliente de WhatsApp
-            const session = client.authStrategy.store.session;
+            // Extraer la sesión desde el proceso del navegador controlado por Puppeteer
+            const session = client.pupBrowser.process().spawnargs;
 
             if (session) {
-                await store.saveSession({ session: 'vicebot-test', data: session });
+                await store.saveSession({ session: 'vicebot-test', data: { args: session } });
                 console.log('[Auth] Sesión guardada manualmente en Firestore.');
             } else {
                 console.error('[Auth] No se pudo obtener la sesión del cliente.');
@@ -126,4 +126,5 @@ client.on('auth_failure', async message => {
 });
 
 client.initialize();
-//Auth bueno
+
+//Auth remote
