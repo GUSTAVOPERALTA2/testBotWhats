@@ -182,9 +182,8 @@ async function startBot() {
       }
     });
 
-    client.on('qr', async () => {
-      log('warn', 'Se ha solicitado un nuevo QR, eliminando sesión anterior en Firestore...');
-      await clearInvalidSession();
+    client.on('qr', async (qr) => {
+      log('warn', 'Nuevo QR solicitado.'); // Se mostrará el QR en consola o mediante el método que tengas implementado.
     });
 
     client.on('ready', async () => {
@@ -200,20 +199,21 @@ async function startBot() {
     client.on('disconnected', async (reason) => {
       log('warn', `El cliente se desconectó: ${reason}`);
       if (reason === 'LOGOUT') {
-        log('warn', 'Se detectó un cierre de sesión. Eliminando sesión y esperando reconexión...');
+        log('warn', 'Se detectó un cierre de sesión desde el teléfono. Limpiando sesión para forzar reconexión (nuevo QR) y finalizando proceso.');
         await clearInvalidSession();
+        process.exit(0);
+      } else {
+        log('warn', 'Desconexión inesperada, reiniciando bot...');
+        restartBot();
       }
-    });
-
-    client.on('auth_failure', async (message) => {
-      log('error', `Error de autenticación: ${message}`);
-      await clearInvalidSession();
     });
 
     client.on('error', async (error) => {
       log('error', 'Error detectado en Puppeteer:', error);
       if (error.message.includes("Execution context was destroyed")) {
-        log('warn', 'Error crítico detectado, reiniciando bot...');
+        log('warn', 'El contexto de ejecución fue destruido. Posiblemente por cierre manual. Finalizando proceso de forma controlada.');
+        process.exit(0);
+      } else {
         restartBot();
       }
     });
@@ -245,4 +245,5 @@ process.on('SIGINT', () => {
 // Iniciar el bot
 startBot();
 
-//codigo bonito
+
+//prueba semi
