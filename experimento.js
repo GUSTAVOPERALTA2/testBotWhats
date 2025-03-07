@@ -1,6 +1,6 @@
 const { Client, RemoteAuth } = require('whatsapp-web.js');
 const { initializeApp, cert } = require('firebase-admin/app');
-const { getFirestore } = require('firebase-admin/firestore');
+const { getFirestore, Timestamp } = require('firebase-admin/firestore');
 const fs = require('fs');
 
 // Cargar credenciales de Firebase
@@ -12,12 +12,42 @@ initializeApp({
 });
 const db = getFirestore();
 
+// Implementación personalizada de RemoteAuthStore
+class FirestoreSessionStore {
+    constructor(db) {
+        this.collection = db.collection('wwebjs_auth'); // Nombre de la colección en Firestore
+    }
+
+    async sessionExists({ session }) {
+        const doc = await this.collection.doc(session).get();
+        return doc.exists;
+    }
+
+    async saveSession({ session, data }) {
+        await this.collection.doc(session).set({
+            data,
+            updatedAt: Timestamp.now(),
+        });
+    }
+
+    async removeSession({ session }) {
+        await this.collection.doc(session).delete();
+    }
+
+    async loadSession({ session }) {
+        const doc = await this.collection.doc(session).get();
+        return doc.exists ? doc.data().data : null;
+    }
+}
+
+// Instancia de almacenamiento en Firestore
+const store = new FirestoreSessionStore(db);
+
 // Configurar el cliente de WhatsApp con RemoteAuth
 const client = new Client({
     authStrategy: new RemoteAuth({
         clientId: 'bot-whatsapp', // Identificador de la sesión
-        dataPath: './.wwebjs_auth', // Copia de seguridad local (opcional)
-        store: db,
+        store, // Usar nuestro FirestoreSessionStore
         backupSyncIntervalMs: 60000 // Establece el tiempo mínimo de sincronización (1 min)
     })
 });
@@ -110,4 +140,4 @@ client.on('message', async message => {
 });
 
 client.initialize();
-//RemoteAuth
+//RemoteAuth3
