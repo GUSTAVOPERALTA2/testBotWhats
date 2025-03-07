@@ -67,7 +67,8 @@ class FirestoreSessionStore {
             return null;
         }
 
-        return { session: sessionData };
+        console.log(`[Firestore] Sesión extraída correctamente para "${session}".`);
+        return sessionData;
     }
 }
 
@@ -101,15 +102,17 @@ client.on('ready', async () => {
         console.warn('[Auth] No se encontró sesión en Firestore, guardando manualmente.');
 
         try {
-            // Extraer la sesión desde el navegador controlado por Puppeteer
-            const clientSession = {
-                wsEndpoint: client.pupBrowser.wsEndpoint()
-            };
+            // Extraer la sesión completa del cliente de WhatsApp
+            const session = client.authStrategy.store.session;
 
-            await store.saveSession({ session: 'vicebot-test', data: clientSession });
-            console.log('[Auth] Sesión guardada manualmente en Firestore.');
+            if (session) {
+                await store.saveSession({ session: 'vicebot-test', data: session });
+                console.log('[Auth] Sesión guardada manualmente en Firestore.');
+            } else {
+                console.error('[Auth] No se pudo obtener la sesión del cliente.');
+            }
         } catch (error) {
-            console.error('[Auth] No se pudo obtener la sesión del cliente:', error);
+            console.error('[Auth] Error al obtener la sesión:', error);
         }
     }
 });
@@ -123,5 +126,4 @@ client.on('auth_failure', async message => {
 });
 
 client.initialize();
-
-//Auth
+//AUTH BUENA
