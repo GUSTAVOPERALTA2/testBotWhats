@@ -70,6 +70,16 @@ async function loadSessionData() {
     }
 }
 
+// Función para eliminar sesión inválida de Firestore
+async function clearInvalidSession() {
+    try {
+        await db.collection('wwebjs_auth').doc('vicebot-test').delete();
+        console.log("[Auth] Sesión inválida eliminada de Firestore.");
+    } catch (error) {
+        console.error("[Auth] Error al eliminar la sesión inválida:", error);
+    }
+}
+
 // Restaurar sesión antes de iniciar Puppeteer
 loadSessionData().then(() => {
     const client = new Client({
@@ -79,9 +89,9 @@ loadSessionData().then(() => {
         }
     });
 
-    client.on('qr', qr => {
-        console.log('[Auth] Escanea este QR con WhatsApp Web:');
-        require('qrcode-terminal').generate(qr, { small: true });
+    client.on('qr', async () => {
+        console.warn("[Auth] Se ha solicitado un nuevo QR, eliminando sesión anterior en Firestore...");
+        await clearInvalidSession();
     });
 
     client.on('ready', async () => {
@@ -91,12 +101,17 @@ loadSessionData().then(() => {
 
     client.on('disconnected', async reason => {
         console.warn(`[Auth] El cliente se desconectó: ${reason}`);
+        if (reason === 'NAVIGATION') {
+            console.warn("[Auth] Sesión posiblemente cerrada en el móvil, eliminando de Firestore...");
+            await clearInvalidSession();
+        }
     });
 
     client.on('auth_failure', async message => {
         console.error(`[Auth] Error de autenticación: ${message}`);
+        await clearInvalidSession();
     });
 
     client.initialize();
 });
-//Test 4
+//Test 10
