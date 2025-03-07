@@ -19,7 +19,7 @@ const SESSION_DIR = path.join(__dirname, 'chrome_session');
 // Función para guardar la sesión del navegador en Firestore
 async function saveSessionData() {
     try {
-        const sessionFiles = fs.readdirSync(SESSION_DIR);
+        const sessionFiles = fs.readdirSync(SESSION_DIR).filter(file => fs.statSync(path.join(SESSION_DIR, file)).isFile());
         const sessionData = {};
 
         for (const file of sessionFiles) {
@@ -97,4 +97,4 @@ loadSessionData().then(() => {
 
     client.initialize();
 });
-//Nueva estrategia 2
+//Nueva estrategia 3
