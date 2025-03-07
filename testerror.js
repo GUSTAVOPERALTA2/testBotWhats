@@ -11,12 +11,12 @@ initializeApp({
 });
 const db = getFirestore();
 
-// Configuración del cliente de WhatsApp con RemoteAuth
+// Configuración del cliente de WhatsApp con RemoteAuth y Firestore
 const client = new Client({
     authStrategy: new RemoteAuth({
         clientId: 'vicebot-test', // Identificador único para la sesión
         firestore: db, // Firestore como almacenamiento de sesión
-        backupSyncIntervalMs: 60000, // Mínimo requerido (1 minuto)
+        backupSyncIntervalMs: 60000, // Guardar la sesión cada 1 minuto
     }),
     puppeteer: {
         headless: true, // Para producción, debe ser true
@@ -52,5 +52,4 @@ client.on('error', (error) => {
 // Iniciar el cliente
 client.initialize();
 
-
-//Nuevo enfoque2
+//Sin qr
