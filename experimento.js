@@ -30,7 +30,7 @@ class FirestoreSessionStore {
             return;
         }
 
-        console.log(`[Firestore] Guardando sesión en Firestore para "${session}":`, JSON.stringify(data, null, 2));
+        console.log(`[Firestore] Datos de sesión que intentamos guardar:`, JSON.stringify(data, null, 2));
 
         await this.collection.doc(session).set({
             data,
@@ -106,6 +106,7 @@ client.on('ready', async () => {
             const session = client.authStrategy.store.session;
 
             if (session) {
+                console.log('[Auth] Datos de sesión obtenidos antes de guardar:', JSON.stringify(session, null, 2));
                 await store.saveSession({ session: 'vicebot-test', data: session });
                 console.log('[Auth] Sesión guardada manualmente en Firestore.');
             } else {
@@ -127,4 +128,4 @@ client.on('auth_failure', async message => {
 
 client.initialize();
 
-//Aut real
+//Ya no se
