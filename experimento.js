@@ -83,23 +83,6 @@ async function clearInvalidSession() {
     }
 }
 
-// Función para reiniciar automáticamente el bot en caso de error crítico
-async function restartBot() {
-    console.warn("[Auth] Reiniciando bot debido a un error crítico...");
-    await clearInvalidSession();
-    setTimeout(() => {
-        console.warn("[Auth] Reiniciando proceso...");
-        exec("node " + __filename, (error, stdout, stderr) => {
-            if (error) {
-                console.error("[Auth] Error al reiniciar el bot:", error);
-            }
-            console.log(stdout);
-            console.error(stderr);
-        });
-        process.exit(1);
-    }, 5000);
-}
-
 // Restaurar sesión antes de iniciar Puppeteer
 loadSessionData().then(async (sessionLoaded) => {
     if (!sessionLoaded) {
@@ -108,13 +91,13 @@ loadSessionData().then(async (sessionLoaded) => {
 
     const client = new Client({
         puppeteer: {
-            headless: false, // Permite ver el navegador
+            headless: false, // Ejecuta con interfaz gráfica
             userDataDir: SESSION_DIR, // Usa el perfil persistente
             args: ['--no-sandbox', '--disable-setuid-sandbox']
         }
     });
 
-    client.on('qr', async () => {
+    client.on('qr', async qr => {
         console.warn("[Auth] Se ha solicitado un nuevo QR, eliminando sesión anterior en Firestore...");
         await clearInvalidSession();
     });
@@ -144,17 +127,9 @@ loadSessionData().then(async (sessionLoaded) => {
 
     client.on('error', async error => {
         console.error("[Auth] Error detectado en Puppeteer:", error);
-        if (error.message.includes("Execution context was destroyed")) {
-            console.warn("[Auth] Error crítico, reiniciando bot...");
-            restartBot();
-        }
     });
 
-    client.initialize().catch(async (error) => {
-        console.error("[Auth] Error en la inicialización del bot:", error);
-        restartBot();
-    });
+    client.initialize();
 });
 
-
-//Error nuevo 2
+//Recuperacion de codigo
