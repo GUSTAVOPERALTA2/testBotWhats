@@ -91,6 +91,17 @@ client.on('qr', qr => {
 
 client.on('ready', async () => {
     console.log('[Auth] Bot de WhatsApp conectado y autenticado correctamente.');
+
+    // Forzar el guardado de la sesión manualmente
+    const sessionData = await store.loadSession({ session: 'vicebot-test' });
+    
+    if (sessionData && Object.keys(sessionData).length > 0) {
+        console.log('[Auth] Sesión cargada exitosamente desde Firestore.');
+    } else {
+        console.warn('[Auth] No se encontró sesión en Firestore, guardando manualmente.');
+        await store.saveSession({ session: 'vicebot-test', data: client.pupPage }); 
+        console.log('[Auth] Sesión guardada manualmente en Firestore.');
+    }
 });
 
 client.on('disconnected', async reason => {
@@ -102,4 +113,6 @@ client.on('auth_failure', async message => {
 });
 
 client.initialize();
-//auth nuevo
+
+
+//Auth 10
