@@ -29,7 +29,7 @@ class FirestoreSessionStore {
             data = {};
         }
 
-        console.log(`Guardando sesión en Firestore para "${session}":`, JSON.stringify(data, null, 2));
+        console.log(`Intentando guardar sesión en Firestore para "${session}":`, JSON.stringify(data, null, 2));
 
         await this.collection.doc(session).set({
             data,
@@ -179,4 +179,4 @@ client.on('message', async message => {
 });
 
 client.initialize();
-//Auth2
+//Auth3
