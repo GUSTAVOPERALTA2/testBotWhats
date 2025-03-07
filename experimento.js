@@ -38,6 +38,10 @@ class FirestoreSessionStore {
         const doc = await this.collection.doc(session).get();
         return doc.exists ? doc.data().data : null;
     }
+
+    async save({ session, data }) { // Agregando el método save() para RemoteAuth
+        await this.saveSession({ session, data });
+    }
 }
 
 // Instancia de almacenamiento en Firestore
@@ -140,4 +144,4 @@ client.on('message', async message => {
 });
 
 client.initialize();
-//RemoteAuth3
+//RemoteAuth5
