@@ -1,4 +1,4 @@
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const { Client } = require('whatsapp-web.js');
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getFirestore, Timestamp } = require('firebase-admin/firestore');
 const fs = require('fs');
@@ -71,7 +71,6 @@ async function loadSessionData() {
 // Restaurar sesión antes de iniciar Puppeteer
 loadSessionData().then(() => {
     const client = new Client({
-        authStrategy: new LocalAuth(),
         puppeteer: {
             headless: false, // Permite ver el navegador
             userDataDir: SESSION_DIR // Usa el perfil persistente
@@ -98,4 +97,4 @@ loadSessionData().then(() => {
 
     client.initialize();
 });
-//Nueva estrategia
+//Nueva estrategia 2
