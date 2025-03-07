@@ -150,4 +150,6 @@ loadSessionData().then(async (sessionLoaded) => {
         restartBot();
     });
 });
-//Error otra vez
+
+
+//Test error nuevo
