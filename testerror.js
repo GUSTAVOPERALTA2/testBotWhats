@@ -11,23 +11,28 @@ initializeApp({
 });
 const db = getFirestore();
 
-// Implementar un store de Firestore manualmente
+// Implementar un store de Firestore compatible con RemoteAuth
 class FirestoreStore {
     constructor(db, collectionName = 'wwebjs_sessions') {
         this.collection = db.collection(collectionName);
     }
 
-    async get(key) {
-        const doc = await this.collection.doc(key).get();
+    async get(session) {
+        const doc = await this.collection.doc(session).get();
         return doc.exists ? doc.data() : null;
     }
 
-    async set(key, value) {
-        await this.collection.doc(key).set(value, { merge: true });
+    async set(session, data) {
+        await this.collection.doc(session).set(data, { merge: true });
     }
 
-    async remove(key) {
-        await this.collection.doc(key).delete();
+    async remove(session) {
+        await this.collection.doc(session).delete();
+    }
+
+    async sessionExists({ session }) {
+        const doc = await this.collection.doc(session).get();
+        return doc.exists;
     }
 }
 
@@ -38,7 +43,7 @@ const store = new FirestoreStore(db);
 const client = new Client({
     authStrategy: new RemoteAuth({
         clientId: 'vicebot-test', // Identificador único para la sesión
-        store: store, // Usar FirestoreStore como almacenamiento de sesión
+        store: store, // Usar Firestore como almacenamiento de sesión
         backupSyncIntervalMs: 60000, // Guardar la sesión cada 1 minuto
     }),
     puppeteer: {
@@ -50,7 +55,7 @@ const client = new Client({
 // Eventos del cliente
 client.on('qr', (qr) => {
     console.warn("[Auth] Escanea este QR en WhatsApp para iniciar sesión:");
-    console.log(qr); // Puedes mostrarlo en consola o generar un código QR en una interfaz
+    console.log(qr);
 });
 
 client.on('ready', () => {
@@ -75,4 +80,4 @@ client.on('error', (error) => {
 // Iniciar el cliente
 client.initialize();
 
-//firebase
+//s
