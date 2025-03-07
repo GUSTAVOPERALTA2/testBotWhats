@@ -133,5 +133,4 @@ loadSessionData().then(async (sessionLoaded) => {
     client.initialize();
 });
 
-
-//Manejo de errores prueba final
+//Version funcional
