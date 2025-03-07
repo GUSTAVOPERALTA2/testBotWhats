@@ -1,6 +1,7 @@
 const { Client, RemoteAuth } = require('whatsapp-web.js');
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
+const qrcode = require('qrcode-terminal'); // Importar librería para mostrar QR
 
 // Cargar credenciales de Firebase
 const serviceAccount = require('./firebase_credentials.json');
@@ -43,7 +44,7 @@ const store = new FirestoreStore(db);
 const client = new Client({
     authStrategy: new RemoteAuth({
         clientId: 'vicebot-test', // Identificador único para la sesión
-        store: store, // Usar Firestore como almacenamiento de sesión
+        store: store, // Usar FirestoreStore como almacenamiento de sesión
         backupSyncIntervalMs: 60000, // Guardar la sesión cada 1 minuto
     }),
     puppeteer: {
@@ -52,10 +53,10 @@ const client = new Client({
     }
 });
 
-// Eventos del cliente
+// Evento para mostrar el QR correctamente en la terminal
 client.on('qr', (qr) => {
     console.warn("[Auth] Escanea este QR en WhatsApp para iniciar sesión:");
-    console.log(qr);
+    qrcode.generate(qr, { small: true }); // Generar el QR visual en la consola
 });
 
 client.on('ready', () => {
@@ -80,4 +81,4 @@ client.on('error', (error) => {
 // Iniciar el cliente
 client.initialize();
 
-//s
+//qr
