@@ -49,6 +49,11 @@ class FirestoreSessionStore {
     async save({ session, data }) {
         await this.saveSession({ session, data });
     }
+
+    async extract({ session }) {
+        console.log(`Extrayendo sesión desde Firestore para "${session}"`);
+        return this.loadSession({ session });
+    }
 }
 
 // Instancia de almacenamiento en Firestore
@@ -174,5 +179,4 @@ client.on('message', async message => {
 });
 
 client.initialize();
-
-//RemoteAuth nuevo
+//Auth2
