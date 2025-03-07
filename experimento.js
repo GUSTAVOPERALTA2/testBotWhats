@@ -1,4 +1,4 @@
-const { Client, RemoteAuth } = require('whatsapp-web.js');
+const { Client, LocalAuth } = require('whatsapp-web.js');
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getFirestore, Timestamp } = require('firebase-admin/firestore');
 const fs = require('fs');
@@ -12,77 +12,51 @@ initializeApp({
 });
 const db = getFirestore();
 
-// Implementación personalizada de RemoteAuthStore para pruebas
-class FirestoreSessionStore {
-    constructor(db) {
-        this.collection = db.collection('wwebjs_auth');
-    }
-
-    async sessionExists({ session }) {
-        const doc = await this.collection.doc(session).get();
-        console.log(`[Firestore] Verificando si existe la sesión: ${session} -> ${doc.exists}`);
-        return doc.exists;
-    }
-
-    async saveSession({ session, data }) {
-        if (!data || Object.keys(data).length === 0) {
-            console.warn(`[Firestore] Advertencia: Datos de sesión vacíos para "${session}". No se guardará.`);
+// Funciones para manejar la sesión manualmente
+async function saveSession(client) {
+    try {
+        const cookies = await client.pupPage.cookies();
+        if (cookies.length === 0) {
+            console.warn("[Auth] Advertencia: No hay cookies para guardar.");
             return;
         }
 
-        console.log(`[Firestore] Datos de sesión que intentamos guardar:`, JSON.stringify(data, null, 2));
-
-        await this.collection.doc(session).set({
-            data,
-            updatedAt: Timestamp.now(),
+        await db.collection('wwebjs_auth').doc('vicebot-test').set({
+            cookies,
+            updatedAt: Timestamp.now()
         }, { merge: true });
-    }
 
-    async removeSession({ session }) {
-        console.log(`[Firestore] Eliminando sesión en Firestore para "${session}".`);
-        await this.collection.doc(session).delete();
-    }
-
-    async loadSession({ session }) {
-        const doc = await this.collection.doc(session).get();
-        if (!doc.exists) {
-            console.warn(`[Firestore] No se encontró sesión en Firestore para "${session}".`);
-            return null;
-        }
-        console.log(`[Firestore] Cargando sesión desde Firestore para "${session}".`);
-        return doc.data().data;
-    }
-
-    async save({ session, data }) {
-        await this.saveSession({ session, data });
-    }
-
-    async extract({ session }) {
-        console.log(`[Firestore] Extrayendo sesión desde Firestore para "${session}".`);
-        
-        const sessionData = await this.loadSession({ session });
-        
-        if (!sessionData || Object.keys(sessionData).length === 0) {
-            console.warn(`[Firestore] No se encontró sesión válida en Firestore para "${session}". Se iniciará una nueva sesión.`);
-            return null;
-        }
-
-        console.log(`[Firestore] Sesión extraída correctamente para "${session}".`);
-        return sessionData;
+        console.log("[Auth] Sesión guardada correctamente en Firestore.");
+    } catch (error) {
+        console.error("[Auth] Error al guardar la sesión:", error);
     }
 }
 
-// Instancia de almacenamiento en Firestore
-const store = new FirestoreSessionStore(db);
+async function loadSession(client) {
+    try {
+        const doc = await db.collection('wwebjs_auth').doc('vicebot-test').get();
+        if (!doc.exists) {
+            console.warn("[Auth] No se encontró sesión en Firestore.");
+            return;
+        }
 
-// Configurar el cliente de WhatsApp con RemoteAuth
+        const { cookies } = doc.data();
+        if (cookies.length === 0) {
+            console.warn("[Auth] No hay cookies guardadas en Firestore.");
+            return;
+        }
+
+        await client.pupPage.setCookie(...cookies);
+        console.log("[Auth] Sesión restaurada correctamente desde Firestore.");
+    } catch (error) {
+        console.error("[Auth] Error al cargar la sesión:", error);
+    }
+}
+
+// Configurar el cliente de WhatsApp con LocalAuth
 const client = new Client({
-    authStrategy: new RemoteAuth({
-        clientId: 'vicebot-test',
-        store,
-        backupSyncIntervalMs: 60000,
-        syncFullHistory: true
-    })
+    authStrategy: new LocalAuth(),
+    puppeteer: { headless: true }
 });
 
 client.on('qr', qr => {
@@ -92,30 +66,8 @@ client.on('qr', qr => {
 
 client.on('ready', async () => {
     console.log('[Auth] Bot de WhatsApp conectado y autenticado correctamente.');
-
-    // Intentar cargar la sesión desde Firestore
-    const sessionData = await store.loadSession({ session: 'vicebot-test' });
-    
-    if (sessionData && Object.keys(sessionData).length > 0) {
-        console.log('[Auth] Sesión cargada exitosamente desde Firestore.');
-    } else {
-        console.warn('[Auth] No se encontró sesión en Firestore, guardando manualmente.');
-
-        try {
-            // Obtener la sesión directamente desde RemoteAuth
-            const session = client.authStrategy.store.session;
-
-            if (session) {
-                console.log('[Auth] Datos de sesión obtenidos antes de guardar:', JSON.stringify(session, null, 2));
-                await store.saveSession({ session: 'vicebot-test', data: session });
-                console.log('[Auth] Sesión guardada manualmente en Firestore.');
-            } else {
-                console.error('[Auth] No se pudo obtener la sesión del cliente.');
-            }
-        } catch (error) {
-            console.error('[Auth] Error al obtener la sesión:', error);
-        }
-    }
+    // Guardar la sesión en Firestore después de la autenticación
+    await saveSession(client);
 });
 
 client.on('disconnected', async reason => {
@@ -128,4 +80,9 @@ client.on('auth_failure', async message => {
 
 client.initialize();
 
-//Ya no se
+// Cargar la sesión antes de que WhatsApp inicie
+client.on('browser_page', async () => {
+    console.log("[Auth] Intentando restaurar sesión desde Firestore...");
+    await loadSession(client);
+});
+//ya nose 2
