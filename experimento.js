@@ -102,11 +102,11 @@ client.on('ready', async () => {
         console.warn('[Auth] No se encontró sesión en Firestore, guardando manualmente.');
 
         try {
-            // Extraer la sesión desde el proceso del navegador controlado por Puppeteer
-            const session = client.pupBrowser.process().spawnargs;
+            // Obtener la sesión directamente desde RemoteAuth
+            const session = client.authStrategy.store.session;
 
             if (session) {
-                await store.saveSession({ session: 'vicebot-test', data: { args: session } });
+                await store.saveSession({ session: 'vicebot-test', data: session });
                 console.log('[Auth] Sesión guardada manualmente en Firestore.');
             } else {
                 console.error('[Auth] No se pudo obtener la sesión del cliente.');
@@ -127,4 +127,4 @@ client.on('auth_failure', async message => {
 
 client.initialize();
 
-//Auth remote
+//Aut real
