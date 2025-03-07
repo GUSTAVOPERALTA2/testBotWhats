@@ -3,6 +3,7 @@ const { initializeApp, cert } = require('firebase-admin/app');
 const { getFirestore, Timestamp } = require('firebase-admin/firestore');
 const fs = require('fs');
 const path = require('path');
+const { exec } = require('child_process');
 
 // Cargar credenciales de Firebase
 const serviceAccount = require('./firebase_credentials.json');
@@ -82,10 +83,21 @@ async function clearInvalidSession() {
     }
 }
 
-// Función para reiniciar Puppeteer en caso de error crítico
+// Función para reiniciar automáticamente el bot en caso de error crítico
 async function restartBot() {
     console.warn("[Auth] Reiniciando bot debido a un error crítico...");
-    process.exit(1);
+    await clearInvalidSession();
+    setTimeout(() => {
+        console.warn("[Auth] Reiniciando proceso...");
+        exec("node " + __filename, (error, stdout, stderr) => {
+            if (error) {
+                console.error("[Auth] Error al reiniciar el bot:", error);
+            }
+            console.log(stdout);
+            console.error(stderr);
+        });
+        process.exit(1);
+    }, 5000);
 }
 
 // Restaurar sesión antes de iniciar Puppeteer
@@ -97,7 +109,8 @@ loadSessionData().then(async (sessionLoaded) => {
     const client = new Client({
         puppeteer: {
             headless: false, // Permite ver el navegador
-            userDataDir: SESSION_DIR // Usa el perfil persistente
+            userDataDir: SESSION_DIR, // Usa el perfil persistente
+            args: ['--no-sandbox', '--disable-setuid-sandbox']
         }
     });
 
@@ -128,15 +141,13 @@ loadSessionData().then(async (sessionLoaded) => {
         console.error("[Auth] Error detectado en Puppeteer:", error);
         if (error.message.includes("Execution context was destroyed")) {
             console.warn("[Auth] Error crítico, reiniciando bot...");
-            await clearInvalidSession();
             restartBot();
         }
     });
 
     client.initialize().catch(async (error) => {
         console.error("[Auth] Error en la inicialización del bot:", error);
-        await clearInvalidSession();
         restartBot();
     });
 });
-//Error de navegador
+//Error otra vez
