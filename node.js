@@ -16,9 +16,9 @@ const db = getFirestore();
 
 // Directorio para almacenar la sesión local
 const SESSION_DIR = path.join(__dirname, 'chrome_session');
-// Excluimos archivos que son temporales o que no deben restaurarse
+// Excluimos archivos que son temporales o de estado interno que pueden invalidar la sesión
 const IGNORED_FILES = [
-  'SingletonCookie', 
+  'SingletonCookie',
   'SingletonLock',
   'DevToolsActivePort',
   'Last Version',
@@ -41,7 +41,9 @@ function sanitizeFileName(fileName) {
 function log(level, message, error) {
   const timestamp = new Date().toISOString();
   console[level](`[${timestamp}] [Auth] ${message}`);
-  if (error) console[level](error);
+  if (error) {
+    console[level](error);
+  }
 }
 
 /**
@@ -56,6 +58,7 @@ function localSessionExists() {
 
 /**
  * Guarda la sesión del navegador en Firestore.
+ * Cada archivo se almacena en la subcolección "session_files" del documento "vicebot-test".
  */
 async function saveSessionData() {
   try {
@@ -113,7 +116,7 @@ async function loadSessionData() {
 }
 
 /**
- * (Opcional) Elimina la sesión en Firestore.
+ * Elimina la sesión en Firestore, borrando el documento principal y todos sus subdocumentos.
  */
 async function clearInvalidSession() {
   try {
@@ -135,6 +138,7 @@ let client; // Variable global para el cliente
 
 /**
  * Inicializa el cliente de WhatsApp y configura los eventos.
+ * Si no existe sesión local, intenta restaurarla desde Firestore.
  */
 function initializeBot() {
   if (!localSessionExists()) {
@@ -157,6 +161,7 @@ function initializeBot() {
 
   client.on('qr', (qr) => {
     log('warn', 'Nuevo QR solicitado.');
+    // Aquí puedes mostrar el QR en consola o mediante otro método.
   });
 
   client.on('authenticated', async () => {
@@ -169,15 +174,28 @@ function initializeBot() {
     await saveSessionData();
   });
 
-  // En este ejemplo, nos enfocamos en el manejo de Ctrl+C, así que aquí simplemente reinicializamos
   client.on('disconnected', async (reason) => {
     log('warn', `El cliente se desconectó: ${reason}`);
-    try {
-      if (client) await client.destroy();
-    } catch (err) {
-      log('error', 'Error al destruir el cliente en desconexión:', err);
+    if (reason === 'LOGOUT') {
+      // Cuando se cierra la sesión desde el dispositivo:
+      log('warn', 'Cierre de sesión desde el dispositivo detectado. Limpiando sesión en Firestore y reinicializando para solicitar nuevo QR.');
+      await clearInvalidSession();
+      try {
+        if (client) await client.destroy();
+      } catch (err) {
+        log('error', 'Error al destruir el cliente en LOGOUT:', err);
+      }
+      // Reinicializamos el bot para que se solicite un nuevo QR.
+      initializeBot();
+    } else {
+      log('warn', 'Desconexión inesperada, reinicializando cliente.');
+      try {
+        if (client) await client.destroy();
+      } catch (err) {
+        log('error', 'Error al destruir el cliente en desconexión inesperada:', err);
+      }
+      initializeBot();
     }
-    initializeBot();
   });
 
   client.on('error', async (error) => {
@@ -200,7 +218,7 @@ function startBot() {
   initializeBot();
 }
 
-// Manejo global de errores
+// Manejo global de errores para capturar excepciones y promesas rechazadas.
 process.on('uncaughtException', (error) => {
   log('error', 'Excepción no capturada:', error);
   if (client) {
@@ -226,8 +244,8 @@ process.on('unhandledRejection', (reason) => {
 /**
  * Manejador para SIGINT (Ctrl+C):
  * - Guarda la sesión en Firestore.
- * - Espera 2 segundos para asegurar la persistencia.
- * - Destruye el cliente de forma segura.
+ * - Espera 2 segundos para asegurar que el guardado se complete.
+ * - Destruye el cliente actual de forma segura.
  * - Reinicializa el bot sin limpiar la sesión.
  */
 process.on('SIGINT', async () => {
@@ -251,4 +269,5 @@ process.on('SIGINT', async () => {
 // Iniciamos el bot
 startBot();
 
-//eliminacion 
+
+//Sistema 2
