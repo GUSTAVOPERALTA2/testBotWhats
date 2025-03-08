@@ -16,7 +16,7 @@ const db = getFirestore();
 
 // Directorio para almacenar la sesión local
 const SESSION_DIR = path.join(__dirname, 'chrome_session');
-// Excluir archivos temporales o de estado que invalidan la sesión
+// Lista de archivos que se deben ignorar (temporales o que invalidan la sesión)
 const IGNORED_FILES = [
   'SingletonCookie',
   'SingletonLock',
@@ -41,9 +41,7 @@ function sanitizeFileName(fileName) {
 function log(level, message, error) {
   const timestamp = new Date().toISOString();
   console[level](`[${timestamp}] [Auth] ${message}`);
-  if (error) {
-    console[level](error);
-  }
+  if (error) console[level](error);
 }
 
 /**
@@ -154,6 +152,7 @@ async function safeDestroyClient() {
  * Si no existe sesión local, intenta restaurarla desde Firestore.
  */
 function initializeBot() {
+  // Intentamos restaurar la sesión si no hay datos locales
   if (!localSessionExists()) {
     loadSessionData().then((sessionLoaded) => {
       if (!sessionLoaded) {
@@ -174,7 +173,7 @@ function initializeBot() {
 
   client.on('qr', (qr) => {
     log('warn', 'Nuevo QR solicitado.');
-    // Puedes mostrar el QR en consola o mediante otro método.
+    // Aquí puedes mostrar el QR en consola o mediante otro método.
   });
 
   client.on('authenticated', async () => {
@@ -190,10 +189,11 @@ function initializeBot() {
   client.on('disconnected', async (reason) => {
     log('warn', `El cliente se desconectó: ${reason}`);
     if (reason === 'LOGOUT') {
-      log('warn', 'Cierre de sesión desde el dispositivo detectado. Limpiando sesión en Firestore y reinicializando para solicitar nuevo QR.');
+      // Cuando se cierra la sesión desde el dispositivo, cerramos el proceso.
+      log('warn', 'Cierre de sesión desde el dispositivo detectado. Limpiando sesión en Firestore y cerrando el proceso.');
       await clearInvalidSession();
       await safeDestroyClient();
-      initializeBot();
+      process.exit(0);
     } else {
       log('warn', 'Desconexión inesperada, reinicializando cliente.');
       await safeDestroyClient();
@@ -217,7 +217,7 @@ function startBot() {
   initializeBot();
 }
 
-// Manejo global de errores para capturar excepciones y promesas rechazadas
+// Manejo global de errores para capturar excepciones y promesas rechazadas.
 process.on('uncaughtException', (error) => {
   log('error', 'Excepción no capturada:', error);
   if (client) {
@@ -264,4 +264,5 @@ process.on('SIGINT', async () => {
 // Iniciamos el bot
 startBot();
 
-//Sistema 3
+
+//FIN
