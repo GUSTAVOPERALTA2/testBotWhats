@@ -1,139 +1,236 @@
+const { Client } = require('whatsapp-web.js');
 const fs = require('fs');
 const path = require('path');
-const { Client } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
-const { initializeApp, cert } = require('firebase-admin/app');
-const { getFirestore, Timestamp } = require('firebase-admin/firestore');
+const { exec } = require('child_process');
+const sqlite3 = require('sqlite3').verbose();
 
-// Cargar credenciales de Firebase
-const serviceAccount = require('./firebase_credentials.json');
-
-// Inicializar Firebase
-initializeApp({
-  credential: cert(serviceAccount)
-});
-const db = getFirestore();
-
-// Directorio donde se almacenará la sesión (userDataDir)
+// Directorio para almacenar la sesión local
 const SESSION_DIR = path.join(__dirname, 'chrome_session');
+// Archivo de la base de datos SQLite
+const DB_PATH = path.join(__dirname, 'session.db');
+// Excluimos archivos que son temporales o que no deben restaurarse
+const IGNORED_FILES = [
+  'SingletonCookie', 
+  'SingletonLock',
+  'DevToolsActivePort',
+  'Last Version',
+  'Local State',
+  'Variations',
+  'first_party_sets_db',
+  'first_party_sets_db-journal'
+];
 
-// Función para restaurar la sesión desde Firestore
-async function loadSessionData() {
+/**
+ * Inicializa la base de datos SQLite y crea la tabla si no existe.
+ */
+function initializeDatabase() {
+  const db = new sqlite3.Database(DB_PATH);
+  db.serialize(() => {
+    db.run(`CREATE TABLE IF NOT EXISTS session_files (
+      fileName TEXT PRIMARY KEY,
+      content TEXT NOT NULL,
+      updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+  });
+  return db;
+}
+
+/**
+ * Función de registro con fecha y hora.
+ */
+function log(level, message, error) {
+  const timestamp = new Date().toISOString();
+  console[level](`[${timestamp}] [Auth] ${message}`);
+  if (error) console[level](error);
+}
+
+/**
+ * Verifica si existe una sesión local en SESSION_DIR.
+ */
+function localSessionExists() {
+  if (!fs.existsSync(SESSION_DIR)) return false;
+  const files = fs.readdirSync(SESSION_DIR)
+    .filter(file => !IGNORED_FILES.includes(file) && fs.statSync(path.join(SESSION_DIR, file)).isFile());
+  return files.length > 0;
+}
+
+/**
+ * Guarda la sesión del navegador en SQLite.
+ */
+function saveSessionData() {
   try {
-    const doc = await db.collection('wwebjs_auth').doc('vicebot-test').get();
-    if (!doc.exists) {
-      console.warn("[Auth] No se encontró sesión en Firestore.");
-      return false;
-    }
-    const { sessionData } = doc.data();
-    if (!sessionData) {
-      console.warn("[Auth] No hay datos de sesión en Firestore.");
-      return false;
-    }
-    // Asegurar que el directorio exista
     if (!fs.existsSync(SESSION_DIR)) {
-      fs.mkdirSync(SESSION_DIR, { recursive: true });
-      console.log(`[Session] Directorio creado: ${SESSION_DIR}`);
+      log('warn', 'No existe el directorio de sesión local.');
+      return;
     }
-    // Restaurar cada archivo almacenado (nombres ya sanitizados)
-    for (const [sanitizedFileName, base64Content] of Object.entries(sessionData)) {
-      const filePath = path.join(SESSION_DIR, sanitizedFileName);
-      fs.writeFileSync(filePath, Buffer.from(base64Content, 'base64'));
-      console.log(`[Session] Restaurado el archivo: ${sanitizedFileName}`);
-    }
-    console.log("[Auth] Sesión restaurada correctamente desde Firestore.");
-    return true;
-  } catch (error) {
-    console.error("[Auth] Error al restaurar la sesión:", error);
-    return false;
-  }
-}
-
-// Función para guardar la sesión en Firestore
-async function saveSessionData() {
-  try {
-    // Lista de archivos a ignorar o excluir para filtrar solo lo esencial
-    const IGNORED_FILES = ['SingletonCookie', 'SingletonLock'];
-    const EXCLUDED_FILES = ['BrowserMetrics-spare.pma', 'first_party_sets.db', 'first_party_sets.db-journal'];
     const sessionFiles = fs.readdirSync(SESSION_DIR)
-      .filter(file =>
-        !IGNORED_FILES.includes(file) &&
-        !EXCLUDED_FILES.includes(file) &&
-        fs.statSync(path.join(SESSION_DIR, file)).isFile()
-      );
-
-    const sessionData = {};
-    for (const file of sessionFiles) {
-      // Sanitizar el nombre del archivo: reemplaza puntos por guiones bajos
-      const sanitizedKey = file.replace(/\./g, '_');
+      .filter(file => !IGNORED_FILES.includes(file) && fs.statSync(path.join(SESSION_DIR, file)).isFile());
+    const db = initializeDatabase();
+    
+    sessionFiles.forEach(file => {
       const filePath = path.join(SESSION_DIR, file);
-      const fileContent = fs.readFileSync(filePath);
-      const base64Content = fileContent.toString('base64');
-      sessionData[sanitizedKey] = base64Content;
-    }
-
-    await db.collection('wwebjs_auth').doc('vicebot-test').set({
-      sessionData,
-      updatedAt: Timestamp.now()
-    }, { merge: true });
-    console.log("[Auth] Sesión guardada correctamente en Firestore.");
+      const content = fs.readFileSync(filePath, 'base64');
+      // Insertamos o actualizamos el registro según corresponda.
+      db.run(
+        `INSERT INTO session_files (fileName, content, updatedAt)
+         VALUES (?, ?, CURRENT_TIMESTAMP)
+         ON CONFLICT(fileName) DO UPDATE SET
+           content = excluded.content,
+           updatedAt = CURRENT_TIMESTAMP`,
+        [file, content],
+        function(err) {
+          if (err) {
+            log('error', `Error al guardar la sesión del archivo ${file}:`, err);
+          }
+        }
+      );
+    });
+    db.close((err) => {
+      if (err) {
+        log('error', 'Error al cerrar la base de datos:', err);
+      } else {
+        log('log', 'Sesión completa guardada en SQLite.');
+      }
+    });
   } catch (error) {
-    console.error("[Auth] Error al guardar la sesión:", error);
+    log('error', 'Error al guardar la sesión completa:', error);
   }
 }
 
-// Función principal para iniciar el bot
-async function startBot() {
-  // Intentar restaurar la sesión (si existe)
-  await loadSessionData();
+/**
+ * Restaura la sesión del navegador desde SQLite.
+ */
+function loadSessionData() {
+  return new Promise((resolve) => {
+    try {
+      const db = initializeDatabase();
+      db.all(`SELECT fileName, content FROM session_files`, [], (err, rows) => {
+        if (err) {
+          log('error', 'Error al recuperar la sesión desde SQLite:', err);
+          db.close();
+          return resolve(false);
+        }
+        if (!rows || rows.length === 0) {
+          log('warn', 'No se encontró sesión en SQLite.');
+          db.close();
+          return resolve(false);
+        }
+        // Asegurarse de que el directorio existe
+        if (!fs.existsSync(SESSION_DIR)) {
+          fs.mkdirSync(SESSION_DIR, { recursive: true });
+        }
+        rows.forEach(row => {
+          const filePath = path.join(SESSION_DIR, row.fileName);
+          fs.writeFileSync(filePath, Buffer.from(row.content, 'base64'));
+        });
+        log('log', 'Sesión restaurada desde SQLite.');
+        db.close();
+        return resolve(true);
+      });
+    } catch (error) {
+      log('error', 'Error al restaurar la sesión:', error);
+      return resolve(false);
+    }
+  });
+}
 
-  // Configurar el cliente de WhatsApp usando el directorio persistente
+/**
+ * Inicializa el cliente de WhatsApp y configura los eventos.
+ */
+function initializeBot() {
+  if (!localSessionExists()) {
+    loadSessionData().then((sessionLoaded) => {
+      if (!sessionLoaded) {
+        log('warn', 'No se pudo restaurar la sesión, iniciando sin sesión previa.');
+      }
+    });
+  } else {
+    log('log', 'Sesión local encontrada, usándola para autenticación.');
+  }
+
   const client = new Client({
     puppeteer: {
-      headless: false, // Cambia a false para depuración y ver el navegador
+      headless: false,
       userDataDir: SESSION_DIR,
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     }
   });
 
-  // Evento: Se genera un nuevo QR
   client.on('qr', (qr) => {
-    console.warn("[Auth] Nuevo QR generado. Escanea el código para autenticar.");
-    // Mostrar el QR en la terminal usando qrcode-terminal
-    qrcode.generate(qr, { small: true });
+    log('warn', 'Nuevo QR solicitado.');
   });
 
-  // Evento: Autenticación exitosa
-  client.on('authenticated', async (session) => {
-    console.log("[Auth] Autenticado exitosamente.");
-    // Guarda la sesión en Firestore tras autenticarse
-    await saveSessionData();
+  client.on('authenticated', async () => {
+    log('log', 'Autenticación exitosa.');
+    saveSessionData();
   });
 
-  // Evento: Bot listo
-  client.on('ready', () => {
-    console.log("[Auth] Bot de WhatsApp está listo y autenticado.");
+  client.on('ready', async () => {
+    log('log', 'Bot conectado y listo.');
+    saveSessionData();
   });
 
-  // Evento: Fallo en la autenticación
-  client.on('auth_failure', async (msg) => {
-    console.error("[Auth] Fallo en la autenticación:", msg);
-    // Opcional: limpiar la sesión en Firestore para forzar nueva autenticación
-    await db.collection('wwebjs_auth').doc('vicebot-test').delete();
-  });
-
-  // Evento: Desconexión
   client.on('disconnected', async (reason) => {
-    console.warn(`[Auth] Cliente desconectado: ${reason}`);
-    // Opcional: limpiar la sesión en Firestore para reiniciar el proceso si es necesario
-    await db.collection('wwebjs_auth').doc('vicebot-test').delete();
+    log('warn', `El cliente se desconectó: ${reason}`);
+    try {
+      if (client) await client.destroy();
+    } catch (err) {
+      log('error', 'Error al destruir el cliente en desconexión:', err);
+    }
+    initializeBot();
   });
 
-  // Inicializar el cliente
+  client.on('error', async (error) => {
+    log('error', 'Error detectado en Puppeteer:', error);
+    try {
+      if (client) await client.destroy();
+    } catch (err) {
+      log('error', 'Error al destruir el cliente (error):', err);
+    }
+    initializeBot();
+  });
+
   client.initialize();
 }
 
-// Iniciar el bot
+/**
+ * Función para iniciar el bot.
+ */
+function startBot() {
+  initializeBot();
+}
+
+// Manejo global de errores
+process.on('uncaughtException', (error) => {
+  log('error', 'Excepción no capturada:', error);
+  startBot();
+});
+
+process.on('unhandledRejection', (reason) => {
+  log('error', 'Promesa no manejada:', reason);
+  startBot();
+});
+
+/**
+ * Manejador para SIGINT (Ctrl+C):
+ * - Guarda la sesión en SQLite.
+ * - Espera 2 segundos para asegurar la persistencia.
+ * - Reinicializa el bot sin limpiar la sesión.
+ */
+process.on('SIGINT', async () => {
+  log('log', 'Recibida señal SIGINT. Guardando sesión antes de reinicializar cliente...');
+  try {
+    saveSessionData();
+    log('log', 'Sesión guardada correctamente. Esperando 2 segundos para asegurar la persistencia...');
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  } catch (error) {
+    log('error', 'Error al guardar la sesión en SIGINT:', error);
+  }
+  startBot();
+});
+
+// Iniciamos el bot
 startBot();
 
-//Restauracion
+
+//SQLite3
