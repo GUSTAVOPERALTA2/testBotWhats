@@ -53,12 +53,12 @@ function initializeBot() {
 
   client.on('qr', (qr) => {
     log('warn', 'QR recibido. Escanea el código para autenticar.');
-    // Puedes imprimir o renderizar el QR aquí.
+    // Aquí puedes imprimir o renderizar el QR.
   });
 
   client.on('authenticated', (session) => {
     log('log', 'Autenticación exitosa.');
-    // Se guardan los datos de sesión en el directorio chrome_session automáticamente.
+    // Se guardan los datos de sesión en chrome_session automáticamente.
     log('log', 'Datos de sesión (para depuración, sin datos sensibles):', session);
   });
 
@@ -68,7 +68,7 @@ function initializeBot() {
 
   client.on('disconnected', async (reason) => {
     log('warn', `El cliente se desconectó: ${reason}`);
-    // Solo eliminamos el directorio si NO se está saliendo intencionalmente y el motivo indica que se cerró la sesión.
+    
     if (!isExiting) {
       const lowerReason = reason.toLowerCase();
       if (lowerReason.includes('logout') || lowerReason.includes('session invalidated')) {
@@ -78,13 +78,19 @@ function initializeBot() {
     } else {
       log('log', 'El cierre es intencional; no se eliminará la sesión.');
     }
+    
     try {
       await client.destroy();
       log('log', 'Cliente destruido correctamente tras la desconexión.');
     } catch (err) {
-      log('error', 'Error al destruir el cliente:', err);
+      // Capturamos y manejamos el error de "Target closed"
+      if (err.message && err.message.includes('Target closed')) {
+        log('warn', 'Error esperado al destruir la conexión (Target closed). Se ignora.');
+      } else {
+        log('error', 'Error al destruir el cliente:', err);
+      }
     }
-    // Reinicializamos el bot solo si NO se está saliendo intencionalmente
+    
     if (!isExiting) {
       setTimeout(() => {
         log('log', 'Reinicializando bot...');
@@ -99,7 +105,11 @@ function initializeBot() {
       await client.destroy();
       log('log', 'Cliente destruido correctamente tras el error.');
     } catch (err) {
-      log('error', 'Error al destruir el cliente tras el error:', err);
+      if (err.message && err.message.includes('Target closed')) {
+        log('warn', 'Error esperado al destruir la conexión (Target closed). Se ignora.');
+      } else {
+        log('error', 'Error al destruir el cliente tras el error:', err);
+      }
     }
     if (!isExiting) {
       setTimeout(() => {
@@ -131,12 +141,16 @@ process.on('SIGINT', async () => {
   } catch (err) {
     log('error', 'Error al destruir el cliente en SIGINT:', err);
   }
-  // Finaliza el proceso sin reinicializar el bot
   process.exit(0);
+});
+
+// Manejo global de excepciones no capturadas
+process.on('uncaughtException', (err) => {
+  log('error', 'Excepción no capturada:', err);
 });
 
 // Iniciar el bot
 startBot();
 
 
-//Uso de flag
+//Flag 2
