@@ -1,10 +1,20 @@
 const fs = require('fs');
 const path = require('path');
+const { initializeApp, cert } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 
-// Asumiendo que ya inicializaste Firebase y tienes el directorio SESSION_DIR definido:
+// Cargar credenciales de Firebase
+const serviceAccount = require('./firebase_credentials.json');
+
+// **Asegurar que Firebase se inicializa antes de usar Firestore**
+initializeApp({
+  credential: cert(serviceAccount)
+});
+
+const db = getFirestore();  // Esto ahora funciona correctamente
+
+// Directorio donde se guardará la sesión
 const SESSION_DIR = path.join(__dirname, 'chrome_session');
-const db = getFirestore();
 
 async function loadSessionData() {
   try {
@@ -20,13 +30,13 @@ async function loadSessionData() {
       return false;
     }
 
-    // Asegurarse de que el directorio de sesión exista
+    // Asegurar que el directorio de sesión existe
     if (!fs.existsSync(SESSION_DIR)) {
       fs.mkdirSync(SESSION_DIR, { recursive: true });
       console.log(`[Session] Directorio creado: ${SESSION_DIR}`);
     }
 
-    // Iterar sobre cada archivo guardado y restaurarlo
+    // Restaurar los archivos
     for (const [sanitizedFileName, base64Content] of Object.entries(sessionData)) {
       const filePath = path.join(SESSION_DIR, sanitizedFileName);
       fs.writeFileSync(filePath, Buffer.from(base64Content, 'base64'));
@@ -41,7 +51,7 @@ async function loadSessionData() {
   }
 }
 
-// Ejecutar la función para probar la restauración
+// Ejecutar la restauración de sesión
 loadSessionData();
 
-//restauracion
+//listo
