@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { Client } = require('whatsapp-web.js');
+const qrcode = require('qrcode-terminal');
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getFirestore, Timestamp } = require('firebase-admin/firestore');
 
@@ -13,7 +14,7 @@ initializeApp({
 });
 const db = getFirestore();
 
-// Definir el directorio donde se almacenará la sesión
+// Directorio donde se almacenará la sesión (userDataDir)
 const SESSION_DIR = path.join(__dirname, 'chrome_session');
 
 // Función para restaurar la sesión desde Firestore
@@ -34,7 +35,7 @@ async function loadSessionData() {
       fs.mkdirSync(SESSION_DIR, { recursive: true });
       console.log(`[Session] Directorio creado: ${SESSION_DIR}`);
     }
-    // Restaurar cada archivo
+    // Restaurar cada archivo almacenado (nombres ya sanitizados)
     for (const [sanitizedFileName, base64Content] of Object.entries(sessionData)) {
       const filePath = path.join(SESSION_DIR, sanitizedFileName);
       fs.writeFileSync(filePath, Buffer.from(base64Content, 'base64'));
@@ -48,9 +49,10 @@ async function loadSessionData() {
   }
 }
 
-// Función para guardar la sesión en Firestore (puedes adaptarla a tus necesidades)
+// Función para guardar la sesión en Firestore
 async function saveSessionData() {
   try {
+    // Lista de archivos a ignorar o excluir para filtrar solo lo esencial
     const IGNORED_FILES = ['SingletonCookie', 'SingletonLock'];
     const EXCLUDED_FILES = ['BrowserMetrics-spare.pma', 'first_party_sets.db', 'first_party_sets.db-journal'];
     const sessionFiles = fs.readdirSync(SESSION_DIR)
@@ -62,7 +64,7 @@ async function saveSessionData() {
 
     const sessionData = {};
     for (const file of sessionFiles) {
-      // Sanitizar el nombre del archivo (reemplazar puntos por guiones bajos)
+      // Sanitizar el nombre del archivo: reemplaza puntos por guiones bajos
       const sanitizedKey = file.replace(/\./g, '_');
       const filePath = path.join(SESSION_DIR, file);
       const fileContent = fs.readFileSync(filePath);
@@ -82,44 +84,48 @@ async function saveSessionData() {
 
 // Función principal para iniciar el bot
 async function startBot() {
-  // Intentamos restaurar la sesión
-  const sessionRestored = await loadSessionData();
+  // Intentar restaurar la sesión (si existe)
+  await loadSessionData();
 
   // Configurar el cliente de WhatsApp usando el directorio persistente
   const client = new Client({
     puppeteer: {
-      headless: true, // o false si deseas ver el navegador
+      headless: false, // Cambia a false para depuración y ver el navegador
       userDataDir: SESSION_DIR,
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     }
   });
 
-  client.on('qr', async (qr) => {
-    console.warn("[Auth] Nuevo QR generado. Se debe escanear para autenticar.");
-    // Si se genera un nuevo QR, significa que la sesión no es válida.
-    // Puedes limpiar la sesión anterior en Firestore para forzar una nueva autenticación.
-    await db.collection('wwebjs_auth').doc('vicebot-test').delete();
+  // Evento: Se genera un nuevo QR
+  client.on('qr', (qr) => {
+    console.warn("[Auth] Nuevo QR generado. Escanea el código para autenticar.");
+    // Mostrar el QR en la terminal usando qrcode-terminal
+    qrcode.generate(qr, { small: true });
   });
 
+  // Evento: Autenticación exitosa
   client.on('authenticated', async (session) => {
     console.log("[Auth] Autenticado exitosamente.");
-    // Guarda la sesión en Firestore después de una autenticación exitosa.
+    // Guarda la sesión en Firestore tras autenticarse
     await saveSessionData();
   });
 
+  // Evento: Bot listo
   client.on('ready', () => {
     console.log("[Auth] Bot de WhatsApp está listo y autenticado.");
   });
 
+  // Evento: Fallo en la autenticación
   client.on('auth_failure', async (msg) => {
     console.error("[Auth] Fallo en la autenticación:", msg);
-    // Limpia la sesión en Firestore para forzar un nuevo QR en el siguiente reinicio
+    // Opcional: limpiar la sesión en Firestore para forzar nueva autenticación
     await db.collection('wwebjs_auth').doc('vicebot-test').delete();
   });
 
+  // Evento: Desconexión
   client.on('disconnected', async (reason) => {
     console.warn(`[Auth] Cliente desconectado: ${reason}`);
-    // Puedes manejar la reconexión o limpiar la sesión en Firestore
+    // Opcional: limpiar la sesión en Firestore para reiniciar el proceso si es necesario
     await db.collection('wwebjs_auth').doc('vicebot-test').delete();
   });
 
@@ -129,4 +135,5 @@ async function startBot() {
 
 // Iniciar el bot
 startBot();
-//Hla
+
+//Restauracion
