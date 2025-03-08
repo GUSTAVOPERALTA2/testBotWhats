@@ -3,9 +3,7 @@ const { initializeApp, cert } = require('firebase-admin/app');
 const { getFirestore, Timestamp } = require('firebase-admin/firestore');
 const fs = require('fs');
 const path = require('path');
-const { exec } = require('child_process');
 
-// Cargar credenciales de Firebase
 const serviceAccount = require('./firebase_credentials.json');
 
 // Inicializar Firebase
@@ -16,7 +14,6 @@ const db = getFirestore();
 
 // Directorio para almacenar la sesión local
 const SESSION_DIR = path.join(__dirname, 'chrome_session');
-// Excluimos archivos que son temporales o que no deben restaurarse
 const IGNORED_FILES = [
   'SingletonCookie', 
   'SingletonLock',
@@ -28,25 +25,16 @@ const IGNORED_FILES = [
   'first_party_sets_db-journal'
 ];
 
-/**
- * Sanitiza el nombre de un archivo para usarlo como ID en Firestore.
- */
 function sanitizeFileName(fileName) {
   return fileName.replace(/[.#$/\[\]]/g, '_');
 }
 
-/**
- * Registra un mensaje con fecha y hora.
- */
 function log(level, message, error) {
   const timestamp = new Date().toISOString();
   console[level](`[${timestamp}] [Auth] ${message}`);
   if (error) console[level](error);
 }
 
-/**
- * Verifica si existe una sesión local en SESSION_DIR.
- */
 function localSessionExists() {
   if (!fs.existsSync(SESSION_DIR)) return false;
   const files = fs.readdirSync(SESSION_DIR)
@@ -54,9 +42,6 @@ function localSessionExists() {
   return files.length > 0;
 }
 
-/**
- * Guarda la sesión del navegador en Firestore.
- */
 async function saveSessionData() {
   try {
     if (!fs.existsSync(SESSION_DIR)) {
@@ -83,9 +68,6 @@ async function saveSessionData() {
   }
 }
 
-/**
- * Restaura la sesión del navegador desde Firestore.
- */
 async function loadSessionData() {
   try {
     const sessionDocRef = db.collection('wwebjs_auth').doc('vicebot-test');
@@ -112,9 +94,6 @@ async function loadSessionData() {
   }
 }
 
-/**
- * (Opcional) Elimina la sesión en Firestore.
- */
 async function clearInvalidSession() {
   try {
     const sessionDocRef = db.collection('wwebjs_auth').doc('vicebot-test');
@@ -135,14 +114,15 @@ let client; // Variable global para el cliente
 
 /**
  * Inicializa el cliente de WhatsApp y configura los eventos.
+ * Ahora la función es asíncrona para esperar la restauración de sesión.
  */
-function initializeBot() {
+async function initializeBot() {
+  // Si no existe una sesión local, intentamos restaurarla desde Firestore.
   if (!localSessionExists()) {
-    loadSessionData().then((sessionLoaded) => {
-      if (!sessionLoaded) {
-        log('warn', 'No se pudo restaurar la sesión, iniciando sin sesión previa.');
-      }
-    });
+    const sessionLoaded = await loadSessionData();
+    if (!sessionLoaded) {
+      log('warn', 'No se pudo restaurar la sesión, iniciando sin sesión previa.');
+    }
   } else {
     log('log', 'Sesión local encontrada, usándola para autenticación.');
   }
@@ -169,7 +149,6 @@ function initializeBot() {
     await saveSessionData();
   });
 
-  // En este ejemplo, nos enfocamos en el manejo de Ctrl+C, así que aquí simplemente reinicializamos
   client.on('disconnected', async (reason) => {
     log('warn', `El cliente se desconectó: ${reason}`);
     try {
@@ -177,7 +156,8 @@ function initializeBot() {
     } catch (err) {
       log('error', 'Error al destruir el cliente en desconexión:', err);
     }
-    initializeBot();
+    // Se espera a reinicializar el bot de forma asíncrona
+    await initializeBot();
   });
 
   client.on('error', async (error) => {
@@ -187,7 +167,7 @@ function initializeBot() {
     } catch (err) {
       log('error', 'Error al destruir el cliente (error):', err);
     }
-    initializeBot();
+    await initializeBot();
   });
 
   client.initialize();
@@ -195,41 +175,28 @@ function initializeBot() {
 
 /**
  * Función para iniciar el bot.
+ * Se encapsula en una función asíncrona para poder esperar la inicialización.
  */
-function startBot() {
-  initializeBot();
+async function startBot() {
+  await initializeBot();
 }
 
-// Manejo global de errores
-process.on('uncaughtException', (error) => {
+process.on('uncaughtException', async (error) => {
   log('error', 'Excepción no capturada:', error);
   if (client) {
-    client.destroy().then(() => {
-      initializeBot();
-    });
-  } else {
-    initializeBot();
+    await client.destroy();
   }
+  await initializeBot();
 });
 
-process.on('unhandledRejection', (reason) => {
+process.on('unhandledRejection', async (reason) => {
   log('error', 'Promesa no manejada:', reason);
   if (client) {
-    client.destroy().then(() => {
-      initializeBot();
-    });
-  } else {
-    initializeBot();
+    await client.destroy();
   }
+  await initializeBot();
 });
 
-/**
- * Manejador para SIGINT (Ctrl+C):
- * - Guarda la sesión en Firestore.
- * - Espera 2 segundos para asegurar la persistencia.
- * - Destruye el cliente de forma segura.
- * - Reinicializa el bot sin limpiar la sesión.
- */
 process.on('SIGINT', async () => {
   log('log', 'Recibida señal SIGINT. Guardando sesión antes de reinicializar cliente...');
   try {
@@ -245,11 +212,10 @@ process.on('SIGINT', async () => {
     log('error', 'Error al destruir el cliente en SIGINT:', err);
   }
   log('log', 'Reinicializando cliente sin limpiar la sesión.');
-  initializeBot();
+  await initializeBot();
 });
 
 // Iniciamos el bot
 startBot();
 
-
-//fin
+//ayudaaaa
