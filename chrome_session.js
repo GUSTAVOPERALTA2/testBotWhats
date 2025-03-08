@@ -2,7 +2,6 @@ const { Client } = require('whatsapp-web.js');
 const fs = require('fs');
 const path = require('path');
 
-// Directorio para almacenar la sesión local
 const SESSION_DIR = path.join(__dirname, 'chrome_session');
 
 // Función de registro con fecha y hora
@@ -19,6 +18,18 @@ function ensureSessionDir() {
     fs.mkdirSync(SESSION_DIR, { recursive: true });
   } else {
     log('log', 'Directorio de sesión encontrado, se utilizará para la autenticación.');
+  }
+}
+
+// Función para eliminar el directorio de sesión
+function clearSessionDir() {
+  if (fs.existsSync(SESSION_DIR)) {
+    try {
+      fs.rmSync(SESSION_DIR, { recursive: true, force: true });
+      log('log', 'Directorio de sesión eliminado.');
+    } catch (err) {
+      log('error', 'Error al eliminar el directorio de sesión:', err);
+    }
   }
 }
 
@@ -41,13 +52,12 @@ function initializeBot() {
 
   client.on('qr', (qr) => {
     log('warn', 'QR recibido. Escanea el código para autenticar.');
-    // Aquí podrías agregar un mecanismo para imprimir o renderizar el QR
+    // Aquí podrías agregar código para imprimir el QR en la consola o enviarlo a alguna interfaz
   });
 
   client.on('authenticated', (session) => {
     log('log', 'Autenticación exitosa.');
-    // La sesión se guarda automáticamente en el directorio SESSION_DIR.
-    // Puedes loguear la sesión (sin datos sensibles) para depuración.
+    // Opcional: muestra algunos datos de la sesión para depuración (evita mostrar datos sensibles)
     log('log', 'Datos de sesión:', session);
   });
 
@@ -57,13 +67,19 @@ function initializeBot() {
 
   client.on('disconnected', async (reason) => {
     log('warn', `El cliente se desconectó: ${reason}`);
+    // Si el motivo de desconexión indica que la sesión fue cerrada/invalidada desde el teléfono, se limpia la sesión.
+    const lowerReason = reason.toLowerCase();
+    if (lowerReason.includes('logout') || lowerReason.includes('session invalidated')) {
+      log('warn', 'La sesión fue invalidada. Se procederá a eliminar el directorio de sesión.');
+      clearSessionDir();
+    }
     try {
       await client.destroy();
       log('log', 'Cliente destruido correctamente tras la desconexión.');
     } catch (err) {
       log('error', 'Error al destruir el cliente:', err);
     }
-    // Reinicia el bot automáticamente para intentar reconectar
+    // Reinicializa el bot para reconectar (se generará un nuevo QR si no hay sesión válida)
     setTimeout(() => {
       log('log', 'Reinicializando bot...');
       initializeBot();
@@ -78,7 +94,6 @@ function initializeBot() {
     } catch (err) {
       log('error', 'Error al destruir el cliente tras el error:', err);
     }
-    // Reinicia el bot automáticamente después de un error
     setTimeout(() => {
       log('log', 'Reinicializando bot después del error...');
       initializeBot();
@@ -95,9 +110,9 @@ function startBot() {
   initializeBot();
 }
 
-// Manejo de la señal SIGINT (Ctrl+C) para un apagado controlado
+// Manejo de la señal SIGINT (Ctrl+C) para un cierre controlado
 process.on('SIGINT', async () => {
-  log('log', 'Señal SIGINT recibida. Iniciando proceso de cierre controlado...');
+  log('log', 'Señal SIGINT recibida. Iniciando cierre controlado...');
   try {
     if (client) {
       await client.destroy();
@@ -106,9 +121,11 @@ process.on('SIGINT', async () => {
   } catch (err) {
     log('error', 'Error al destruir el cliente en SIGINT:', err);
   }
-  // Finaliza el proceso
   process.exit(0);
 });
 
 // Iniciar el bot
 startBot();
+
+
+//Bot w12
