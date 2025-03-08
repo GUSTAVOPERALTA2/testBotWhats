@@ -4,6 +4,7 @@ const { getFirestore, Timestamp } = require('firebase-admin/firestore');
 const fs = require('fs');
 const path = require('path');
 
+// Cargar credenciales de Firebase
 const serviceAccount = require('./firebase_credentials.json');
 
 // Inicializar Firebase
@@ -14,6 +15,7 @@ const db = getFirestore();
 
 // Directorio para almacenar la sesión local
 const SESSION_DIR = path.join(__dirname, 'chrome_session');
+// Archivos que no se restauran o guardan
 const IGNORED_FILES = [
   'SingletonCookie', 
   'SingletonLock',
@@ -25,16 +27,25 @@ const IGNORED_FILES = [
   'first_party_sets_db-journal'
 ];
 
+/**
+ * Sanitiza el nombre de un archivo para usarlo como ID en Firestore.
+ */
 function sanitizeFileName(fileName) {
   return fileName.replace(/[.#$/\[\]]/g, '_');
 }
 
+/**
+ * Registra un mensaje con fecha y hora.
+ */
 function log(level, message, error) {
   const timestamp = new Date().toISOString();
   console[level](`[${timestamp}] [Auth] ${message}`);
   if (error) console[level](error);
 }
 
+/**
+ * Verifica si existe una sesión local en SESSION_DIR.
+ */
 function localSessionExists() {
   if (!fs.existsSync(SESSION_DIR)) return false;
   const files = fs.readdirSync(SESSION_DIR)
@@ -42,6 +53,9 @@ function localSessionExists() {
   return files.length > 0;
 }
 
+/**
+ * Guarda la sesión del navegador en Firestore.
+ */
 async function saveSessionData() {
   try {
     if (!fs.existsSync(SESSION_DIR)) {
@@ -68,6 +82,9 @@ async function saveSessionData() {
   }
 }
 
+/**
+ * Restaura la sesión del navegador desde Firestore.
+ */
 async function loadSessionData() {
   try {
     const sessionDocRef = db.collection('wwebjs_auth').doc('vicebot-test');
@@ -94,6 +111,9 @@ async function loadSessionData() {
   }
 }
 
+/**
+ * (Opcional) Elimina la sesión en Firestore.
+ */
 async function clearInvalidSession() {
   try {
     const sessionDocRef = db.collection('wwebjs_auth').doc('vicebot-test');
@@ -114,10 +134,10 @@ let client; // Variable global para el cliente
 
 /**
  * Inicializa el cliente de WhatsApp y configura los eventos.
- * Ahora la función es asíncrona para esperar la restauración de sesión.
+ * La función es asíncrona para esperar la restauración de sesión.
  */
 async function initializeBot() {
-  // Si no existe una sesión local, intentamos restaurarla desde Firestore.
+  // Si no existe una sesión local, se intenta restaurarla desde Firestore.
   if (!localSessionExists()) {
     const sessionLoaded = await loadSessionData();
     if (!sessionLoaded) {
@@ -156,7 +176,6 @@ async function initializeBot() {
     } catch (err) {
       log('error', 'Error al destruir el cliente en desconexión:', err);
     }
-    // Se espera a reinicializar el bot de forma asíncrona
     await initializeBot();
   });
 
@@ -175,12 +194,12 @@ async function initializeBot() {
 
 /**
  * Función para iniciar el bot.
- * Se encapsula en una función asíncrona para poder esperar la inicialización.
  */
 async function startBot() {
   await initializeBot();
 }
 
+// Manejo global de errores
 process.on('uncaughtException', async (error) => {
   log('error', 'Excepción no capturada:', error);
   if (client) {
@@ -197,8 +216,14 @@ process.on('unhandledRejection', async (reason) => {
   await initializeBot();
 });
 
+/**
+ * Manejador para SIGINT (Ctrl+C):
+ * - Guarda la sesión en Firestore.
+ * - Espera 2 segundos para asegurar la persistencia.
+ * - Destruye el cliente de forma segura y finaliza el proceso.
+ */
 process.on('SIGINT', async () => {
-  log('log', 'Recibida señal SIGINT. Guardando sesión antes de reinicializar cliente...');
+  log('log', 'Recibida señal SIGINT. Guardando sesión antes de salir...');
   try {
     await saveSessionData();
     log('log', 'Sesión guardada correctamente. Esperando 2 segundos para asegurar la persistencia...');
@@ -211,11 +236,11 @@ process.on('SIGINT', async () => {
   } catch (err) {
     log('error', 'Error al destruir el cliente en SIGINT:', err);
   }
-  log('log', 'Reinicializando cliente sin limpiar la sesión.');
-  await initializeBot();
+  log('log', 'Saliendo del proceso.');
+  process.exit(0);
 });
 
-// Iniciamos el bot
+// Iniciar el bot
 startBot();
 
-//ayudaaaa
+//Ayuda
