@@ -20,7 +20,7 @@ const IGNORED_FILES = ['SingletonCookie', 'SingletonLock'];
 
 /**
  * Sanitiza el nombre de un archivo para usarlo como ID en Firestore.
- * Reemplaza caracteres problemáticos (como .,#,$,/,[,]) por guiones bajos.
+ * Reemplaza caracteres problemáticos (por ejemplo, .,#,$,/,[,]) por guiones bajos.
  */
 function sanitizeFileName(fileName) {
   return fileName.replace(/[.#$/\[\]]/g, '_');
@@ -112,7 +112,7 @@ async function loadSessionData() {
 }
 
 /**
- * Elimina la sesión en Firestore, borrando el documento principal y todos los documentos de la subcolección "session_files".
+ * (Opcional) Elimina la sesión en Firestore, borrando el documento principal y sus subdocumentos.
  */
 async function clearInvalidSession() {
   try {
@@ -137,7 +137,7 @@ let client; // Variable global para el cliente
  * Si no existe sesión local, intenta restaurarla desde Firestore.
  */
 function initializeBot() {
-  // Si no hay sesión local, intentamos restaurarla desde Firestore
+  // Si no hay sesión local, se intenta restaurar desde Firestore
   if (!localSessionExists()) {
     loadSessionData().then((sessionLoaded) => {
       if (!sessionLoaded) {
@@ -158,7 +158,7 @@ function initializeBot() {
 
   client.on('qr', (qr) => {
     log('warn', 'Nuevo QR solicitado.');
-    // Puedes mostrar el QR en consola o utilizar otro método para desplegarlo.
+    // Aquí puedes mostrar el QR en consola o mediante otro método.
   });
 
   client.on('authenticated', async () => {
@@ -171,34 +171,21 @@ function initializeBot() {
     await saveSessionData();
   });
 
+  // Para este ejemplo, en el evento "disconnected" simplemente reinicializamos el cliente
   client.on('disconnected', async (reason) => {
     log('warn', `El cliente se desconectó: ${reason}`);
-    // Si la desconexión se debe a un cierre de sesión desde el teléfono
-    if (reason === 'LOGOUT') {
-      log('warn', 'Cierre de sesión desde el teléfono detectado. Limpiando sesión en Firestore y reiniciando QR.');
-      await clearInvalidSession();
-      try {
-        if (client) await client.destroy().catch(err => log('error', 'Error en destroy (LOGOUT):', err));
-      } catch (err) {
-        log('error', 'Error al destruir el cliente (LOGOUT):', err);
-      }
-      // Reinicializamos el cliente para que se solicite un nuevo QR
-      initializeBot();
-    } else {
-      log('warn', 'Desconexión inesperada, reiniciando cliente.');
-      try {
-        if (client) await client.destroy().catch(err => log('error', 'Error en destroy (desconexión inesperada):', err));
-      } catch (err) {
-        log('error', 'Error al destruir el cliente (desconexión inesperada):', err);
-      }
-      initializeBot();
+    try {
+      if (client) await client.destroy();
+    } catch (err) {
+      log('error', 'Error al destruir el cliente en desconexión:', err);
     }
+    initializeBot();
   });
 
   client.on('error', async (error) => {
     log('error', 'Error detectado en Puppeteer:', error);
     try {
-      if (client) await client.destroy().catch(err => log('error', 'Error en destroy (error):', err));
+      if (client) await client.destroy();
     } catch (err) {
       log('error', 'Error al destruir el cliente (error):', err);
     }
@@ -239,14 +226,18 @@ process.on('unhandledRejection', (reason) => {
 });
 
 /**
- * Manejador para SIGINT (Ctrl+C).
- * Guarda la sesión en Firestore, destruye el cliente y reinicializa el bot sin limpiar la sesión.
+ * Manejador para SIGINT (Ctrl+C):
+ * - Guarda la sesión en Firestore.
+ * - Espera 2 segundos para asegurar que el guardado se complete.
+ * - Destruye el cliente actual de forma segura.
+ * - Reinicializa el bot sin limpiar la sesión.
  */
 process.on('SIGINT', async () => {
   log('log', 'Recibida señal SIGINT. Guardando sesión antes de reinicializar cliente...');
   try {
     await saveSessionData();
-    log('log', 'Sesión guardada correctamente. Reinicializando cliente sin limpiar la sesión.');
+    log('log', 'Sesión guardada correctamente. Esperando 2 segundos para asegurar la persistencia...');
+    await new Promise(resolve => setTimeout(resolve, 2000));
   } catch (error) {
     log('error', 'Error al guardar la sesión en SIGINT:', error);
   }
@@ -255,6 +246,7 @@ process.on('SIGINT', async () => {
   } catch (err) {
     log('error', 'Error al destruir el cliente en SIGINT:', err);
   }
+  log('log', 'Reinicializando cliente sin limpiar la sesión.');
   initializeBot();
 });
 
@@ -262,4 +254,4 @@ process.on('SIGINT', async () => {
 startBot();
 
 
-//Bot inicio
+//Cerrado ctrl
