@@ -14,12 +14,12 @@ initializeApp({
 });
 const db = getFirestore();
 
-// Ruta donde se guardará el perfil de navegación
+// Directorio para almacenar la sesión del navegador
 const SESSION_DIR = path.join(__dirname, 'chrome_session');
 const IGNORED_FILES = ['SingletonCookie', 'SingletonLock'];
 
 /**
- * Función para sanitizar el nombre de un archivo, reemplazando caracteres problemáticos.
+ * Sanitiza el nombre de un archivo, reemplazando caracteres no permitidos en Firestore.
  * @param {string} fileName - Nombre original del archivo.
  * @returns {string} - Nombre sanitizado.
  */
@@ -36,9 +36,18 @@ function sanitizeFileName(fileName) {
 function log(level, message, error) {
   const timestamp = new Date().toISOString();
   console[level](`[${timestamp}] [Auth] ${message}`);
-  if (error) {
-    console[level](error);
-  }
+  if (error) console[level](error);
+}
+
+/**
+ * Verifica si existe una sesión local en SESSION_DIR.
+ * @returns {boolean} - true si existen archivos de sesión.
+ */
+function localSessionExists() {
+  if (!fs.existsSync(SESSION_DIR)) return false;
+  const files = fs.readdirSync(SESSION_DIR)
+    .filter(file => !IGNORED_FILES.includes(file) && fs.statSync(path.join(SESSION_DIR, file)).isFile());
+  return files.length > 0;
 }
 
 /**
@@ -46,26 +55,28 @@ function log(level, message, error) {
  */
 async function saveSessionData() {
   try {
+    if (!fs.existsSync(SESSION_DIR)) {
+      log('warn', 'No existe directorio de sesión local para guardar.');
+      return;
+    }
     const sessionFiles = fs.readdirSync(SESSION_DIR)
       .filter(file => !IGNORED_FILES.includes(file) && fs.statSync(path.join(SESSION_DIR, file)).isFile());
 
     const sessionDocRef = db.collection('wwebjs_auth').doc('vicebot-test');
-
-    // Actualizar el campo updatedAt en el documento principal
+    // Actualizamos el campo updatedAt en el documento principal
     await sessionDocRef.set({ updatedAt: Timestamp.now() }, { merge: true });
 
-    // Guardar cada archivo en la subcolección "session_files"
+    // Guardamos cada archivo en la subcolección "session_files"
     for (const file of sessionFiles) {
       const sanitizedFileName = sanitizeFileName(file);
       const filePath = path.join(SESSION_DIR, file);
       const content = fs.readFileSync(filePath, 'base64');
       await sessionDocRef.collection('session_files').doc(sanitizedFileName).set({
-        fileName: file,       // Nombre original del archivo
-        content,              // Contenido en base64
+        fileName: file,
+        content,
         updatedAt: Timestamp.now()
       });
     }
-
     log('log', 'Sesión completa del navegador guardada en Firestore.');
   } catch (error) {
     log('error', 'Error al guardar la sesión completa:', error);
@@ -73,7 +84,7 @@ async function saveSessionData() {
 }
 
 /**
- * Restaura la sesión del navegador desde Firestore leyendo los documentos de la subcolección "session_files".
+ * Restaura la sesión del navegador desde Firestore leyendo la subcolección "session_files".
  * @returns {Promise<boolean>} - true si se restauró la sesión; false en caso contrario.
  */
 async function loadSessionData() {
@@ -97,7 +108,6 @@ async function loadSessionData() {
         fs.writeFileSync(filePath, Buffer.from(data.content, 'base64'));
       }
     });
-
     log('log', 'Sesión del navegador restaurada desde Firestore.');
     return true;
   } catch (error) {
@@ -112,15 +122,12 @@ async function loadSessionData() {
 async function clearInvalidSession() {
   try {
     const sessionDocRef = db.collection('wwebjs_auth').doc('vicebot-test');
-    // Borrar documentos de la subcolección "session_files"
     const sessionFilesSnapshot = await sessionDocRef.collection('session_files').get();
     const batch = db.batch();
     sessionFilesSnapshot.forEach(doc => {
       batch.delete(doc.ref);
     });
     await batch.commit();
-
-    // Borrar el documento principal (opcional)
     await sessionDocRef.delete();
     log('log', 'Sesión inválida eliminada de Firestore.');
   } catch (error) {
@@ -130,18 +137,16 @@ async function clearInvalidSession() {
 
 /**
  * Reinicia el bot.
- * @param {boolean} clearSession - Indica si se debe limpiar la sesión antes de reiniciar.
+ * @param {boolean} clearSession - Si es true, limpia la sesión en Firestore antes de reiniciar.
  */
 function restartBot(clearSession = true) {
   if (clearSession) {
-    log('warn', 'Reiniciando bot debido a un error crítico...');
+    log('warn', 'Reiniciando bot debido a error crítico...');
     clearInvalidSession().finally(() => {
       setTimeout(() => {
         log('warn', 'Reiniciando proceso...');
         exec(`node ${__filename}`, (error, stdout, stderr) => {
-          if (error) {
-            log('error', 'Error al reiniciar el bot:', error);
-          }
+          if (error) log('error', 'Error al reiniciar el bot:', error);
           if (stdout) console.log(stdout);
           if (stderr) console.error(stderr);
         });
@@ -153,9 +158,7 @@ function restartBot(clearSession = true) {
     setTimeout(() => {
       log('warn', 'Reiniciando proceso...');
       exec(`node ${__filename}`, (error, stdout, stderr) => {
-        if (error) {
-          log('error', 'Error al reiniciar el bot:', error);
-        }
+        if (error) log('error', 'Error al reiniciar el bot:', error);
         if (stdout) console.log(stdout);
         if (stderr) console.error(stderr);
       });
@@ -169,21 +172,27 @@ function restartBot(clearSession = true) {
  */
 async function startBot() {
   try {
-    const sessionLoaded = await loadSessionData();
-    if (!sessionLoaded) {
-      log('warn', 'No se pudo restaurar la sesión, iniciando sin sesión previa.');
+    // Si no existe sesión local, intentamos cargarla desde Firestore.
+    if (!localSessionExists()) {
+      const sessionLoaded = await loadSessionData();
+      if (!sessionLoaded) {
+        log('warn', 'No se pudo restaurar la sesión, iniciando sin sesión previa.');
+      }
+    } else {
+      log('log', 'Sesión local encontrada, usándola para la autenticación.');
     }
 
     const client = new Client({
       puppeteer: {
-        headless: false, // Permite ver el navegador
-        userDataDir: SESSION_DIR, // Usa el perfil persistente
+        headless: false,
+        userDataDir: SESSION_DIR,
         args: ['--no-sandbox', '--disable-setuid-sandbox']
       }
     });
 
-    client.on('qr', async (qr) => {
-      log('warn', 'Nuevo QR solicitado.'); // Se mostrará el QR en consola o mediante el método que tengas implementado.
+    client.on('qr', (qr) => {
+      log('warn', 'Nuevo QR solicitado.');
+      // Aquí puedes mostrar el QR en consola o mediante otro método.
     });
 
     client.on('ready', async () => {
@@ -199,7 +208,7 @@ async function startBot() {
     client.on('disconnected', async (reason) => {
       log('warn', `El cliente se desconectó: ${reason}`);
       if (reason === 'LOGOUT') {
-        log('warn', 'Se detectó un cierre de sesión desde el teléfono. Limpiando sesión para forzar reconexión (nuevo QR) y finalizando proceso.');
+        log('warn', 'Cierre de sesión desde el teléfono detectado. Limpiando sesión en Firestore para forzar reconexión.');
         await clearInvalidSession();
         process.exit(0);
       } else {
@@ -211,7 +220,7 @@ async function startBot() {
     client.on('error', async (error) => {
       log('error', 'Error detectado en Puppeteer:', error);
       if (error.message.includes("Execution context was destroyed")) {
-        log('warn', 'El contexto de ejecución fue destruido. Posiblemente por cierre manual. Finalizando proceso de forma controlada.');
+        log('warn', 'El contexto de ejecución fue destruido. Finalizando proceso de forma controlada.');
         process.exit(0);
       } else {
         restartBot();
@@ -236,9 +245,15 @@ process.on('unhandledRejection', (reason) => {
   restartBot();
 });
 
-// Manejo de la señal SIGINT (Ctrl+C) para reinicio automático sin limpiar la sesión
-process.on('SIGINT', () => {
-  log('log', 'Recibida señal SIGINT. Reiniciando el bot de forma automática sin limpiar la sesión...');
+// Manejador para SIGINT (Ctrl+C): guarda la sesión en Firestore y reinicia sin limpiar la sesión.
+process.on('SIGINT', async () => {
+  log('log', 'Recibida señal SIGINT. Guardando sesión antes de reiniciar...');
+  try {
+    await saveSessionData();
+    log('log', 'Sesión guardada correctamente. Reiniciando sin limpiar la sesión.');
+  } catch (error) {
+    log('error', 'Error al guardar la sesión en SIGINT:', error);
+  }
   restartBot(false);
 });
 
@@ -246,4 +261,4 @@ process.on('SIGINT', () => {
 startBot();
 
 
-//prueba semi
+//Reinicio seguro
