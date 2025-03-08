@@ -16,9 +16,9 @@ const db = getFirestore();
 
 // Directorio para almacenar la sesión local
 const SESSION_DIR = path.join(__dirname, 'chrome_session');
-// Lista de archivos que se deben ignorar (temporales o que invalidan la sesión)
+// Excluimos archivos que son temporales o que no deben restaurarse
 const IGNORED_FILES = [
-  'SingletonCookie',
+  'SingletonCookie', 
   'SingletonLock',
   'DevToolsActivePort',
   'Last Version',
@@ -113,7 +113,7 @@ async function loadSessionData() {
 }
 
 /**
- * Elimina la sesión en Firestore, borrando el documento principal y sus subdocumentos.
+ * (Opcional) Elimina la sesión en Firestore.
  */
 async function clearInvalidSession() {
   try {
@@ -134,25 +134,9 @@ async function clearInvalidSession() {
 let client; // Variable global para el cliente
 
 /**
- * Función auxiliar para destruir el cliente de forma segura.
- */
-async function safeDestroyClient() {
-  if (client) {
-    try {
-      await client.destroy();
-    } catch (err) {
-      log('error', 'Error al destruir el cliente:', err);
-    }
-    client = null;
-  }
-}
-
-/**
  * Inicializa el cliente de WhatsApp y configura los eventos.
- * Si no existe sesión local, intenta restaurarla desde Firestore.
  */
 function initializeBot() {
-  // Intentamos restaurar la sesión si no hay datos locales
   if (!localSessionExists()) {
     loadSessionData().then((sessionLoaded) => {
       if (!sessionLoaded) {
@@ -173,7 +157,6 @@ function initializeBot() {
 
   client.on('qr', (qr) => {
     log('warn', 'Nuevo QR solicitado.');
-    // Aquí puedes mostrar el QR en consola o mediante otro método.
   });
 
   client.on('authenticated', async () => {
@@ -186,24 +169,24 @@ function initializeBot() {
     await saveSessionData();
   });
 
+  // En este ejemplo, nos enfocamos en el manejo de Ctrl+C, así que aquí simplemente reinicializamos
   client.on('disconnected', async (reason) => {
     log('warn', `El cliente se desconectó: ${reason}`);
-    if (reason === 'LOGOUT') {
-      // Cuando se cierra la sesión desde el dispositivo, cerramos el proceso.
-      log('warn', 'Cierre de sesión desde el dispositivo detectado. Limpiando sesión en Firestore y cerrando el proceso.');
-      await clearInvalidSession();
-      await safeDestroyClient();
-      process.exit(0);
-    } else {
-      log('warn', 'Desconexión inesperada, reinicializando cliente.');
-      await safeDestroyClient();
-      initializeBot();
+    try {
+      if (client) await client.destroy();
+    } catch (err) {
+      log('error', 'Error al destruir el cliente en desconexión:', err);
     }
+    initializeBot();
   });
 
   client.on('error', async (error) => {
     log('error', 'Error detectado en Puppeteer:', error);
-    await safeDestroyClient();
+    try {
+      if (client) await client.destroy();
+    } catch (err) {
+      log('error', 'Error al destruir el cliente (error):', err);
+    }
     initializeBot();
   });
 
@@ -217,11 +200,11 @@ function startBot() {
   initializeBot();
 }
 
-// Manejo global de errores para capturar excepciones y promesas rechazadas.
+// Manejo global de errores
 process.on('uncaughtException', (error) => {
   log('error', 'Excepción no capturada:', error);
   if (client) {
-    safeDestroyClient().then(() => {
+    client.destroy().then(() => {
       initializeBot();
     });
   } else {
@@ -232,7 +215,7 @@ process.on('uncaughtException', (error) => {
 process.on('unhandledRejection', (reason) => {
   log('error', 'Promesa no manejada:', reason);
   if (client) {
-    safeDestroyClient().then(() => {
+    client.destroy().then(() => {
       initializeBot();
     });
   } else {
@@ -256,7 +239,11 @@ process.on('SIGINT', async () => {
   } catch (error) {
     log('error', 'Error al guardar la sesión en SIGINT:', error);
   }
-  await safeDestroyClient();
+  try {
+    if (client) await client.destroy();
+  } catch (err) {
+    log('error', 'Error al destruir el cliente en SIGINT:', err);
+  }
   log('log', 'Reinicializando cliente sin limpiar la sesión.');
   initializeBot();
 });
@@ -265,4 +252,4 @@ process.on('SIGINT', async () => {
 startBot();
 
 
-//FIN
+//fin
