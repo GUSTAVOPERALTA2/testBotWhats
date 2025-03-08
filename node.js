@@ -16,7 +16,7 @@ const db = getFirestore();
 
 // Directorio para almacenar la sesión local
 const SESSION_DIR = path.join(__dirname, 'chrome_session');
-// Excluimos archivos que son temporales o de estado interno que pueden invalidar la sesión
+// Excluir archivos temporales o de estado que invalidan la sesión
 const IGNORED_FILES = [
   'SingletonCookie',
   'SingletonLock',
@@ -58,7 +58,6 @@ function localSessionExists() {
 
 /**
  * Guarda la sesión del navegador en Firestore.
- * Cada archivo se almacena en la subcolección "session_files" del documento "vicebot-test".
  */
 async function saveSessionData() {
   try {
@@ -116,7 +115,7 @@ async function loadSessionData() {
 }
 
 /**
- * Elimina la sesión en Firestore, borrando el documento principal y todos sus subdocumentos.
+ * Elimina la sesión en Firestore, borrando el documento principal y sus subdocumentos.
  */
 async function clearInvalidSession() {
   try {
@@ -135,6 +134,20 @@ async function clearInvalidSession() {
 }
 
 let client; // Variable global para el cliente
+
+/**
+ * Función auxiliar para destruir el cliente de forma segura.
+ */
+async function safeDestroyClient() {
+  if (client) {
+    try {
+      await client.destroy();
+    } catch (err) {
+      log('error', 'Error al destruir el cliente:', err);
+    }
+    client = null;
+  }
+}
 
 /**
  * Inicializa el cliente de WhatsApp y configura los eventos.
@@ -161,7 +174,7 @@ function initializeBot() {
 
   client.on('qr', (qr) => {
     log('warn', 'Nuevo QR solicitado.');
-    // Aquí puedes mostrar el QR en consola o mediante otro método.
+    // Puedes mostrar el QR en consola o mediante otro método.
   });
 
   client.on('authenticated', async () => {
@@ -177,34 +190,20 @@ function initializeBot() {
   client.on('disconnected', async (reason) => {
     log('warn', `El cliente se desconectó: ${reason}`);
     if (reason === 'LOGOUT') {
-      // Cuando se cierra la sesión desde el dispositivo:
       log('warn', 'Cierre de sesión desde el dispositivo detectado. Limpiando sesión en Firestore y reinicializando para solicitar nuevo QR.');
       await clearInvalidSession();
-      try {
-        if (client) await client.destroy();
-      } catch (err) {
-        log('error', 'Error al destruir el cliente en LOGOUT:', err);
-      }
-      // Reinicializamos el bot para que se solicite un nuevo QR.
+      await safeDestroyClient();
       initializeBot();
     } else {
       log('warn', 'Desconexión inesperada, reinicializando cliente.');
-      try {
-        if (client) await client.destroy();
-      } catch (err) {
-        log('error', 'Error al destruir el cliente en desconexión inesperada:', err);
-      }
+      await safeDestroyClient();
       initializeBot();
     }
   });
 
   client.on('error', async (error) => {
     log('error', 'Error detectado en Puppeteer:', error);
-    try {
-      if (client) await client.destroy();
-    } catch (err) {
-      log('error', 'Error al destruir el cliente (error):', err);
-    }
+    await safeDestroyClient();
     initializeBot();
   });
 
@@ -218,11 +217,11 @@ function startBot() {
   initializeBot();
 }
 
-// Manejo global de errores para capturar excepciones y promesas rechazadas.
+// Manejo global de errores para capturar excepciones y promesas rechazadas
 process.on('uncaughtException', (error) => {
   log('error', 'Excepción no capturada:', error);
   if (client) {
-    client.destroy().then(() => {
+    safeDestroyClient().then(() => {
       initializeBot();
     });
   } else {
@@ -233,7 +232,7 @@ process.on('uncaughtException', (error) => {
 process.on('unhandledRejection', (reason) => {
   log('error', 'Promesa no manejada:', reason);
   if (client) {
-    client.destroy().then(() => {
+    safeDestroyClient().then(() => {
       initializeBot();
     });
   } else {
@@ -244,8 +243,8 @@ process.on('unhandledRejection', (reason) => {
 /**
  * Manejador para SIGINT (Ctrl+C):
  * - Guarda la sesión en Firestore.
- * - Espera 2 segundos para asegurar que el guardado se complete.
- * - Destruye el cliente actual de forma segura.
+ * - Espera 2 segundos para asegurar la persistencia.
+ * - Destruye el cliente de forma segura.
  * - Reinicializa el bot sin limpiar la sesión.
  */
 process.on('SIGINT', async () => {
@@ -257,11 +256,7 @@ process.on('SIGINT', async () => {
   } catch (error) {
     log('error', 'Error al guardar la sesión en SIGINT:', error);
   }
-  try {
-    if (client) await client.destroy();
-  } catch (err) {
-    log('error', 'Error al destruir el cliente en SIGINT:', err);
-  }
+  await safeDestroyClient();
   log('log', 'Reinicializando cliente sin limpiar la sesión.');
   initializeBot();
 });
@@ -269,5 +264,4 @@ process.on('SIGINT', async () => {
 // Iniciamos el bot
 startBot();
 
-
-//Sistema 2
+//Sistema 3
