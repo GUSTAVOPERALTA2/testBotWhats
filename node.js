@@ -16,11 +16,20 @@ const db = getFirestore();
 
 // Directorio para almacenar la sesión local
 const SESSION_DIR = path.join(__dirname, 'chrome_session');
-const IGNORED_FILES = ['SingletonCookie', 'SingletonLock'];
+// Excluimos archivos que son temporales o que no deben restaurarse
+const IGNORED_FILES = [
+  'SingletonCookie', 
+  'SingletonLock',
+  'DevToolsActivePort',
+  'Last Version',
+  'Local State',
+  'Variations',
+  'first_party_sets_db',
+  'first_party_sets_db-journal'
+];
 
 /**
  * Sanitiza el nombre de un archivo para usarlo como ID en Firestore.
- * Reemplaza caracteres problemáticos (por ejemplo, .,#,$,/,[,]) por guiones bajos.
  */
 function sanitizeFileName(fileName) {
   return fileName.replace(/[.#$/\[\]]/g, '_');
@@ -32,14 +41,11 @@ function sanitizeFileName(fileName) {
 function log(level, message, error) {
   const timestamp = new Date().toISOString();
   console[level](`[${timestamp}] [Auth] ${message}`);
-  if (error) {
-    console[level](error);
-  }
+  if (error) console[level](error);
 }
 
 /**
  * Verifica si existe una sesión local en SESSION_DIR.
- * Retorna true si se encuentran archivos (excepto los ignorados).
  */
 function localSessionExists() {
   if (!fs.existsSync(SESSION_DIR)) return false;
@@ -50,7 +56,6 @@ function localSessionExists() {
 
 /**
  * Guarda la sesión del navegador en Firestore.
- * Cada archivo se almacena en la subcolección "session_files" dentro del documento "vicebot-test".
  */
 async function saveSessionData() {
   try {
@@ -61,9 +66,7 @@ async function saveSessionData() {
     const sessionFiles = fs.readdirSync(SESSION_DIR)
       .filter(file => !IGNORED_FILES.includes(file) && fs.statSync(path.join(SESSION_DIR, file)).isFile());
     const sessionDocRef = db.collection('wwebjs_auth').doc('vicebot-test');
-    // Actualizamos el campo updatedAt en el documento principal
     await sessionDocRef.set({ updatedAt: Timestamp.now() }, { merge: true });
-    // Guardamos cada archivo en la subcolección "session_files"
     for (const file of sessionFiles) {
       const sanitizedFileName = sanitizeFileName(file);
       const filePath = path.join(SESSION_DIR, file);
@@ -82,8 +85,6 @@ async function saveSessionData() {
 
 /**
  * Restaura la sesión del navegador desde Firestore.
- * Lee la subcolección "session_files" y escribe los archivos en SESSION_DIR.
- * Retorna true si se restauró la sesión correctamente.
  */
 async function loadSessionData() {
   try {
@@ -112,7 +113,7 @@ async function loadSessionData() {
 }
 
 /**
- * (Opcional) Elimina la sesión en Firestore, borrando el documento principal y sus subdocumentos.
+ * (Opcional) Elimina la sesión en Firestore.
  */
 async function clearInvalidSession() {
   try {
@@ -133,11 +134,9 @@ async function clearInvalidSession() {
 let client; // Variable global para el cliente
 
 /**
- * Inicializa el cliente de WhatsApp y configura los manejadores de eventos.
- * Si no existe sesión local, intenta restaurarla desde Firestore.
+ * Inicializa el cliente de WhatsApp y configura los eventos.
  */
 function initializeBot() {
-  // Si no hay sesión local, se intenta restaurar desde Firestore
   if (!localSessionExists()) {
     loadSessionData().then((sessionLoaded) => {
       if (!sessionLoaded) {
@@ -158,7 +157,6 @@ function initializeBot() {
 
   client.on('qr', (qr) => {
     log('warn', 'Nuevo QR solicitado.');
-    // Aquí puedes mostrar el QR en consola o mediante otro método.
   });
 
   client.on('authenticated', async () => {
@@ -171,7 +169,7 @@ function initializeBot() {
     await saveSessionData();
   });
 
-  // Para este ejemplo, en el evento "disconnected" simplemente reinicializamos el cliente
+  // En este ejemplo, nos enfocamos en el manejo de Ctrl+C, así que aquí simplemente reinicializamos
   client.on('disconnected', async (reason) => {
     log('warn', `El cliente se desconectó: ${reason}`);
     try {
@@ -202,7 +200,7 @@ function startBot() {
   initializeBot();
 }
 
-// Manejo global de errores para capturar excepciones y promesas rechazadas
+// Manejo global de errores
 process.on('uncaughtException', (error) => {
   log('error', 'Excepción no capturada:', error);
   if (client) {
@@ -228,8 +226,8 @@ process.on('unhandledRejection', (reason) => {
 /**
  * Manejador para SIGINT (Ctrl+C):
  * - Guarda la sesión en Firestore.
- * - Espera 2 segundos para asegurar que el guardado se complete.
- * - Destruye el cliente actual de forma segura.
+ * - Espera 2 segundos para asegurar la persistencia.
+ * - Destruye el cliente de forma segura.
  * - Reinicializa el bot sin limpiar la sesión.
  */
 process.on('SIGINT', async () => {
@@ -253,5 +251,4 @@ process.on('SIGINT', async () => {
 // Iniciamos el bot
 startBot();
 
-
-//Cerrado ctrl
+//eliminacion 
