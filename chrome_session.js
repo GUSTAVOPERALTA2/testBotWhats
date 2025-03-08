@@ -152,5 +152,4 @@ process.on('uncaughtException', (err) => {
 // Iniciar el bot
 startBot();
 
-
-//Flag 2
+//Flag experimento
