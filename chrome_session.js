@@ -4,6 +4,9 @@ const path = require('path');
 
 const SESSION_DIR = path.join(__dirname, 'chrome_session');
 
+let isExiting = false; // Flag para indicar cierre intencional (Ctrl+C)
+let client; // Variable global para el cliente
+
 // Función de registro con fecha y hora
 function log(level, message, error) {
   const timestamp = new Date().toISOString();
@@ -33,8 +36,6 @@ function clearSessionDir() {
   }
 }
 
-let client; // Variable global para el cliente
-
 /**
  * Inicializa el cliente de WhatsApp usando el directorio de sesión
  */
@@ -52,13 +53,13 @@ function initializeBot() {
 
   client.on('qr', (qr) => {
     log('warn', 'QR recibido. Escanea el código para autenticar.');
-    // Aquí podrías agregar código para imprimir el QR en la consola o enviarlo a alguna interfaz
+    // Puedes imprimir o renderizar el QR aquí.
   });
 
   client.on('authenticated', (session) => {
     log('log', 'Autenticación exitosa.');
-    // Opcional: muestra algunos datos de la sesión para depuración (evita mostrar datos sensibles)
-    log('log', 'Datos de sesión:', session);
+    // Se guardan los datos de sesión en el directorio chrome_session automáticamente.
+    log('log', 'Datos de sesión (para depuración, sin datos sensibles):', session);
   });
 
   client.on('ready', () => {
@@ -67,11 +68,15 @@ function initializeBot() {
 
   client.on('disconnected', async (reason) => {
     log('warn', `El cliente se desconectó: ${reason}`);
-    // Si el motivo de desconexión indica que la sesión fue cerrada/invalidada desde el teléfono, se limpia la sesión.
-    const lowerReason = reason.toLowerCase();
-    if (lowerReason.includes('logout') || lowerReason.includes('session invalidated')) {
-      log('warn', 'La sesión fue invalidada. Se procederá a eliminar el directorio de sesión.');
-      clearSessionDir();
+    // Solo eliminamos el directorio si NO se está saliendo intencionalmente y el motivo indica que se cerró la sesión.
+    if (!isExiting) {
+      const lowerReason = reason.toLowerCase();
+      if (lowerReason.includes('logout') || lowerReason.includes('session invalidated')) {
+        log('warn', 'La sesión fue cerrada desde la app. Se eliminará el directorio de sesión.');
+        clearSessionDir();
+      }
+    } else {
+      log('log', 'El cierre es intencional; no se eliminará la sesión.');
     }
     try {
       await client.destroy();
@@ -79,11 +84,13 @@ function initializeBot() {
     } catch (err) {
       log('error', 'Error al destruir el cliente:', err);
     }
-    // Reinicializa el bot para reconectar (se generará un nuevo QR si no hay sesión válida)
-    setTimeout(() => {
-      log('log', 'Reinicializando bot...');
-      initializeBot();
-    }, 2000);
+    // Reinicializamos el bot solo si NO se está saliendo intencionalmente
+    if (!isExiting) {
+      setTimeout(() => {
+        log('log', 'Reinicializando bot...');
+        initializeBot();
+      }, 2000);
+    }
   });
 
   client.on('error', async (error) => {
@@ -94,10 +101,12 @@ function initializeBot() {
     } catch (err) {
       log('error', 'Error al destruir el cliente tras el error:', err);
     }
-    setTimeout(() => {
-      log('log', 'Reinicializando bot después del error...');
-      initializeBot();
-    }, 2000);
+    if (!isExiting) {
+      setTimeout(() => {
+        log('log', 'Reinicializando bot después del error...');
+        initializeBot();
+      }, 2000);
+    }
   });
 
   client.initialize();
@@ -112,7 +121,8 @@ function startBot() {
 
 // Manejo de la señal SIGINT (Ctrl+C) para un cierre controlado
 process.on('SIGINT', async () => {
-  log('log', 'Señal SIGINT recibida. Iniciando cierre controlado...');
+  isExiting = true;
+  log('log', 'Señal SIGINT recibida. Guardando sesión y cerrando de forma controlada...');
   try {
     if (client) {
       await client.destroy();
@@ -121,6 +131,7 @@ process.on('SIGINT', async () => {
   } catch (err) {
     log('error', 'Error al destruir el cliente en SIGINT:', err);
   }
+  // Finaliza el proceso sin reinicializar el bot
   process.exit(0);
 });
 
@@ -128,4 +139,4 @@ process.on('SIGINT', async () => {
 startBot();
 
 
-//Bot w12
+//Uso de flag
