@@ -1,260 +1,160 @@
 const { Client } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal'); // En caso de necesitar mostrar el QR en la terminal, aunque por ahora mantenemos la ventana.
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getFirestore, Timestamp } = require('firebase-admin/firestore');
 const fs = require('fs');
 const path = require('path');
+const { exec } = require('child_process');
 
 // Cargar credenciales de Firebase
 const serviceAccount = require('./firebase_credentials.json');
 
 // Inicializar Firebase
 initializeApp({
-  credential: cert(serviceAccount)
+    credential: cert(serviceAccount)
 });
 const db = getFirestore();
 
-// Directorio para almacenar la sesión local
+// Ruta donde se guardará el perfil de navegación
 const SESSION_DIR = path.join(__dirname, 'chrome_session');
-// Lista de archivos que se ignoran al guardar/restaurar. Se han removido archivos que consideramos necesarios para la sesión.
-const IGNORED_FILES = [
-  'SingletonCookie', 
-  'SingletonLock',
-  'DevToolsActivePort',
-  'Last Version',
-  'Local State',
-  'Variations'
-];
+const IGNORED_FILES = ['SingletonCookie', 'SingletonLock'];
 
-function sanitizeFileName(fileName) {
-  return fileName.replace(/[.#$/\[\]]/g, '_');
-}
-
-function log(level, message, error) {
-  const timestamp = new Date().toISOString();
-  console[level](`[${timestamp}] [DEPURACIÓN] ${message}`);
-  if (error) console[level](error);
-}
-
-function localSessionExists() {
-  if (!fs.existsSync(SESSION_DIR)) {
-    log('warn', `El directorio de sesión (${SESSION_DIR}) no existe.`);
-    return false;
-  }
-  const files = fs.readdirSync(SESSION_DIR)
-    .filter(file => !IGNORED_FILES.includes(file) && fs.statSync(path.join(SESSION_DIR, file)).isFile());
-  log('log', `Archivos detectados en sesión local: ${files.join(', ')}`);
-  return files.length > 0;
-}
-
+// Función para guardar la sesión del navegador en Firestore
 async function saveSessionData() {
-  try {
-    if (!fs.existsSync(SESSION_DIR)) {
-      log('warn', 'No existe el directorio de sesión local para guardar.');
-      return;
+    try {
+        const sessionFiles = fs.readdirSync(SESSION_DIR)
+            .filter(file => !IGNORED_FILES.includes(file) && fs.statSync(path.join(SESSION_DIR, file)).isFile());
+        const sessionData = {};
+
+        for (const file of sessionFiles) {
+            const filePath = path.join(SESSION_DIR, file);
+            sessionData[file] = fs.readFileSync(filePath, 'base64');
+        }
+
+        await db.collection('wwebjs_auth').doc('vicebot-test').set({
+            sessionData,
+            updatedAt: Timestamp.now()
+        }, { merge: true });
+
+        console.log("[Auth] Sesión completa del navegador guardada en Firestore.");
+    } catch (error) {
+        console.error("[Auth] Error al guardar la sesión completa:", error);
     }
-    const sessionFiles = fs.readdirSync(SESSION_DIR)
-      .filter(file => !IGNORED_FILES.includes(file) && fs.statSync(path.join(SESSION_DIR, file)).isFile());
-    log('log', `Guardando archivos de sesión: ${sessionFiles.join(', ')}`);
-    const sessionDocRef = db.collection('wwebjs_auth').doc('vicebot-test');
-    await sessionDocRef.set({ updatedAt: Timestamp.now() }, { merge: true });
-    for (const file of sessionFiles) {
-      const sanitizedFileName = sanitizeFileName(file);
-      const filePath = path.join(SESSION_DIR, file);
-      const content = fs.readFileSync(filePath, 'base64');
-      await sessionDocRef.collection('session_files').doc(sanitizedFileName).set({
-        fileName: file,
-        content,
-        updatedAt: Timestamp.now()
-      });
-      log('log', `Archivo guardado en Firestore: ${file}`);
-    }
-    log('log', 'Todos los archivos de sesión se han guardado en Firestore.');
-  } catch (error) {
-    log('error', 'Error al guardar la sesión en Firestore:', error);
-  }
 }
 
+// Función para restaurar la sesión del navegador desde Firestore
 async function loadSessionData() {
-  try {
-    log('log', 'Intentando cargar la sesión desde Firestore...');
-    const sessionDocRef = db.collection('wwebjs_auth').doc('vicebot-test');
-    const sessionFilesSnapshot = await sessionDocRef.collection('session_files').get();
-    if (sessionFilesSnapshot.empty) {
-      log('warn', 'No se encontró sesión en Firestore.');
-      return false;
+    try {
+        const doc = await db.collection('wwebjs_auth').doc('vicebot-test').get();
+        if (!doc.exists) {
+            console.warn("[Auth] No se encontró sesión en Firestore.");
+            return false;
+        }
+
+        const { sessionData } = doc.data();
+        if (!sessionData) {
+            console.warn("[Auth] No hay datos de sesión en Firestore.");
+            return false;
+        }
+
+        if (!fs.existsSync(SESSION_DIR)) {
+            fs.mkdirSync(SESSION_DIR, { recursive: true });
+        }
+
+        for (const [file, content] of Object.entries(sessionData)) {
+            const filePath = path.join(SESSION_DIR, file);
+            fs.writeFileSync(filePath, Buffer.from(content, 'base64'));
+        }
+
+        console.log("[Auth] Sesión del navegador restaurada desde Firestore.");
+        return true;
+    } catch (error) {
+        console.error("[Auth] Error al restaurar la sesión:", error);
+        return false;
     }
-    if (!fs.existsSync(SESSION_DIR)) {
-      log('log', `El directorio de sesión (${SESSION_DIR}) no existe, se creará ahora.`);
-      fs.mkdirSync(SESSION_DIR, { recursive: true });
-    }
-    sessionFilesSnapshot.forEach(doc => {
-      const data = doc.data();
-      if (data && data.fileName && data.content) {
-        const filePath = path.join(SESSION_DIR, data.fileName);
-        fs.writeFileSync(filePath, Buffer.from(data.content, 'base64'));
-        log('log', `Archivo restaurado desde Firestore: ${data.fileName}`);
-      }
-    });
-    // Esperar brevemente para asegurarse de que la escritura se complete
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    const restoredFiles = fs.readdirSync(SESSION_DIR)
-      .filter(file => !IGNORED_FILES.includes(file) && fs.statSync(path.join(SESSION_DIR, file)).isFile());
-    log('log', `Archivos presentes en el directorio de sesión tras restaurar: ${restoredFiles.join(', ')}`);
-    return true;
-  } catch (error) {
-    log('error', 'Error al restaurar la sesión desde Firestore:', error);
-    return false;
-  }
 }
 
+// Función para eliminar sesión inválida de Firestore
 async function clearInvalidSession() {
-  try {
-    log('log', 'Limpiando sesión inválida de Firestore...');
-    const sessionDocRef = db.collection('wwebjs_auth').doc('vicebot-test');
-    const sessionFilesSnapshot = await sessionDocRef.collection('session_files').get();
-    const batch = db.batch();
-    sessionFilesSnapshot.forEach(doc => {
-      batch.delete(doc.ref);
-    });
-    await batch.commit();
-    await sessionDocRef.delete();
-    log('log', 'Sesión inválida eliminada de Firestore.');
-  } catch (error) {
-    log('error', 'Error al eliminar la sesión inválida de Firestore:', error);
-  }
+    try {
+        await db.collection('wwebjs_auth').doc('vicebot-test').delete();
+        console.log("[Auth] Sesión inválida eliminada de Firestore.");
+    } catch (error) {
+        console.error("[Auth] Error al eliminar la sesión inválida:", error);
+    }
 }
 
-let client;
+// Función para reiniciar automáticamente el bot en caso de error crítico
+async function restartBot() {
+    console.warn("[Auth] Reiniciando bot debido a un error crítico...");
+    await clearInvalidSession();
+    setTimeout(() => {
+        console.warn("[Auth] Reiniciando proceso...");
+        exec("node " + __filename, (error, stdout, stderr) => {
+            if (error) {
+                console.error("[Auth] Error al reiniciar el bot:", error);
+            }
+            console.log(stdout);
+            console.error(stderr);
+        });
+        process.exit(1);
+    }, 5000);
+}
 
-async function initializeBot() {
-  log('log', 'Iniciando proceso de inicialización del bot...');
-  // Intentar restaurar la sesión si no existe localmente
-  if (!localSessionExists()) {
-    const sessionLoaded = await loadSessionData();
+// Restaurar sesión antes de iniciar Puppeteer
+loadSessionData().then(async (sessionLoaded) => {
     if (!sessionLoaded) {
-      log('warn', 'No se pudo restaurar la sesión desde Firestore. Se iniciará sin sesión previa.');
-    } else {
-      log('log', 'Sesión restaurada correctamente desde Firestore.');
+        console.warn("[Auth] No se pudo restaurar sesión, iniciando sin sesión previa.");
     }
-  } else {
-    log('log', 'Sesión local encontrada, se usará para la autenticación.');
-  }
 
-  client = new Client({
-    puppeteer: {
-      headless: false, // Mantenemos la ventana del navegador para depuración visual
-      userDataDir: SESSION_DIR,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    }
-  });
+    const client = new Client({
+        puppeteer: {
+            headless: false, // Permite ver el navegador
+            userDataDir: SESSION_DIR, // Usa el perfil persistente
+            args: ['--no-sandbox', '--disable-setuid-sandbox']
+        }
+    });
 
-  client.on('qr', (qr) => {
-    log('warn', 'Evento QR: se ha generado un nuevo código QR.');
-    // Opcional: Puedes mostrar el QR en la terminal usando qrcode-terminal
-    qrcode.generate(qr, { small: true });
-  });
+    client.on('qr', async () => {
+        console.warn("[Auth] Se ha solicitado un nuevo QR, eliminando sesión anterior en Firestore...");
+        await clearInvalidSession();
+    });
 
-  client.on('authenticated', async (session) => {
-    log('log', 'Evento authenticated: autenticación exitosa.');
-    await saveSessionData();
-  });
+    client.on('ready', async () => {
+        console.log('[Auth] Bot de WhatsApp conectado y autenticado correctamente.');
+        await saveSessionData();
+    });
 
-  client.on('ready', async () => {
-    log('log', 'Evento ready: el bot está conectado y listo.');
-    await saveSessionData();
-  });
+    client.on('disconnected', async reason => {
+        console.warn(`[Auth] El cliente se desconectó: ${reason}`);
+        if (reason === 'LOGOUT') {
+            console.warn("[Auth] Se detectó un cierre de sesión. Eliminando y esperando reconexión...");
+            await clearInvalidSession();
+        }
+    });
 
-  client.on('disconnected', async (reason) => {
-    log('warn', `Evento disconnected: el cliente se ha desconectado. Razón: ${reason}`);
-    try {
-      if (client) {
-        await client.destroy();
-        log('log', 'Cliente destruido correctamente tras la desconexión.');
-      }
-    } catch (err) {
-      log('error', 'Error al destruir el cliente tras desconexión:', err);
-    }
-    log('log', 'Reinicializando el bot después de la desconexión...');
-    await initializeBot();
-  });
+    client.on('authenticated', async () => {
+        console.log("[Auth] Autenticación exitosa. Guardando sesión nuevamente...");
+        await saveSessionData();
+    });
 
-  client.on('error', async (error) => {
-    log('error', 'Evento error: error detectado en el cliente:', error);
-    try {
-      if (client) {
-        await client.destroy();
-        log('log', 'Cliente destruido correctamente tras error.');
-      }
-    } catch (err) {
-      log('error', 'Error al destruir el cliente tras error:', err);
-    }
-    log('log', 'Reinicializando el bot después de detectar un error...');
-    await initializeBot();
-  });
+    client.on('auth_failure', async message => {
+        console.error(`[Auth] Error de autenticación: ${message}`);
+        await clearInvalidSession();
+    });
 
-  try {
-    log('log', 'Inicializando cliente de WhatsApp...');
-    client.initialize();
-  } catch (error) {
-    log('error', 'Error al inicializar el cliente:', error);
-  }
-}
+    client.on('error', async error => {
+        console.error("[Auth] Error detectado en Puppeteer:", error);
+        if (error.message.includes("Execution context was destroyed")) {
+            console.warn("[Auth] Error crítico, reiniciando bot...");
+            restartBot();
+        }
+    });
 
-async function startBot() {
-  await initializeBot();
-}
-
-process.on('uncaughtException', async (error) => {
-  log('error', 'Excepción no capturada:', error);
-  try {
-    if (client) {
-      await client.destroy();
-      log('log', 'Cliente destruido tras excepción no capturada.');
-    }
-  } catch (err) {
-    log('error', 'Error al destruir el cliente tras excepción:', err);
-  }
-  log('log', 'Reinicializando el bot tras excepción no capturada...');
-  await initializeBot();
+    client.initialize().catch(async (error) => {
+        console.error("[Auth] Error en la inicialización del bot:", error);
+        restartBot();
+    });
 });
 
-process.on('unhandledRejection', async (reason) => {
-  log('error', 'Promesa no manejada:', reason);
-  try {
-    if (client) {
-      await client.destroy();
-      log('log', 'Cliente destruido tras promesa no manejada.');
-    }
-  } catch (err) {
-    log('error', 'Error al destruir el cliente tras promesa no manejada:', err);
-  }
-  log('log', 'Reinicializando el bot tras promesa no manejada...');
-  await initializeBot();
-});
 
-process.on('SIGINT', async () => {
-  log('log', 'Señal SIGINT recibida. Guardando sesión antes de salir...');
-  try {
-    await saveSessionData();
-    log('log', 'Sesión guardada correctamente. Esperando 2 segundos para asegurar la persistencia...');
-    await new Promise(resolve => setTimeout(resolve, 2000));
-  } catch (error) {
-    log('error', 'Error al guardar la sesión en SIGINT:', error);
-  }
-  try {
-    if (client) {
-      await client.destroy();
-      log('log', 'Cliente destruido correctamente tras SIGINT.');
-    }
-  } catch (err) {
-    log('error', 'Error al destruir el cliente en SIGINT:', err);
-  }
-  log('log', 'Saliendo del proceso por SIGINT.');
-  process.exit(0);
-});
-
-// Iniciar el bot
-startBot();
-
-//manejo de errores
+//Error nuevo 2
