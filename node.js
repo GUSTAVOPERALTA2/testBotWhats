@@ -3,7 +3,7 @@ const path = require('path');
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getFirestore, Timestamp } = require('firebase-admin/firestore');
 
-// Cargar credenciales de Firebase (asegúrate de tener firebase_credentials.json en el directorio)
+// Cargar credenciales de Firebase
 const serviceAccount = require('./firebase_credentials.json');
 
 // Inicializar Firebase
@@ -16,6 +16,11 @@ const db = getFirestore();
 const SESSION_DIR = path.join(__dirname, 'chrome_session');
 const IGNORED_FILES = ['SingletonCookie', 'SingletonLock'];
 
+// Función para sanitizar nombres de archivo (por ejemplo, reemplazar puntos con guiones bajos)
+function sanitizeFileName(fileName) {
+    return fileName.replace(/\./g, '_');
+}
+
 // Función para guardar la sesión en Firestore
 async function saveSessionData() {
     try {
@@ -23,11 +28,12 @@ async function saveSessionData() {
         const sessionFiles = fs.readdirSync(SESSION_DIR)
             .filter(file => !IGNORED_FILES.includes(file) && fs.statSync(path.join(SESSION_DIR, file)).isFile());
         
-        // Crear un objeto para almacenar los datos de sesión en base64
+        // Crear un objeto para almacenar los datos de sesión en base64, sanitizando las claves
         const sessionData = {};
         for (const file of sessionFiles) {
+            const sanitizedKey = sanitizeFileName(file);
             const filePath = path.join(SESSION_DIR, file);
-            sessionData[file] = fs.readFileSync(filePath, 'base64');
+            sessionData[sanitizedKey] = fs.readFileSync(filePath, 'base64');
         }
         
         // Guardar la sesión en Firestore con un timestamp
@@ -44,5 +50,4 @@ async function saveSessionData() {
 
 // Ejecutar la función de prueba para guardar la sesión
 saveSessionData();
-
-//unos minutos
+//otro
